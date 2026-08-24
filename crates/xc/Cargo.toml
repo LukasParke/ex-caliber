@@ -11,3 +11,7 @@ path = "src/main.rs"
 [dependencies]
 gpui.workspace = true
 xc-canvas.workspace = true
+xc-core.workspace = true
+xc-io.workspace = true
+xc-mcp.workspace = true
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

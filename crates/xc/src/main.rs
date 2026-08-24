@@ -1,12 +1,39 @@
+//! `xc` — the ExCaliber binary.
+//!
+//! Subcommands grow with milestones: `spike` (M0, default while the GUI is young),
+//! `mcp` (M2, headless MCP server), `headless` (M2+), `export` (M6),
+//! `install-claude` (M6).
+
 fn main() {
-    // Subcommands grow with milestones: `mcp` (M2), `headless` (M2), `export` (M6),
-    // `install-claude` (M6). Until then the spike is the default action.
-    let cmd = std::env::args().nth(1);
-    match cmd.as_deref() {
+    let mut args = std::env::args().skip(1);
+    match args.next().as_deref() {
         None | Some("spike") => xc_canvas::run_spike(),
+        Some("mcp") => {
+            let mut file = None;
+            let mut rest = args.peekable();
+            while let Some(arg) = rest.next() {
+                match arg.as_str() {
+                    "--file" => file = rest.next().map(std::path::PathBuf::from),
+                    other => {
+                        eprintln!("xc mcp: unknown flag `{other}`");
+                        eprintln!("usage: xc mcp [--file <scene.excalidraw>]");
+                        std::process::exit(2);
+                    }
+                }
+            }
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("tokio runtime");
+            let result = rt.block_on(xc_mcp::run_stdio(xc_mcp::XcServerConfig { file }));
+            if let Err(e) = result {
+                eprintln!("xc mcp: {e}");
+                std::process::exit(1);
+            }
+        }
         Some(other) => {
             eprintln!("xc: unknown command `{other}`");
-            eprintln!("usage: xc [spike]");
+            eprintln!("usage: xc [spike|mcp]");
             std::process::exit(2);
         }
     }

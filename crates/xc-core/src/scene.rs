@@ -37,9 +37,8 @@ fn key_err(r: std::result::Result<String, String>) -> Result<String> {
     r.map_err(SceneError::OrderKey)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Scene {
-    /// By id. Iteration order is NOT scene order; use `ordered()`.
     elements: BTreeMap<String, Element>,
     /// Raw passthrough of appState we don't model yet (round-trip fidelity).
     pub app_state: serde_json::Value,
@@ -86,6 +85,14 @@ impl Scene {
     pub fn add_silent(&mut self, mut el: Element) -> Result<String> {
         self.add_internal(&mut el)?;
         Ok(el.id)
+    }
+
+    /// Begin an atomic multi-op transaction; `commit` records ONE undo entry.
+    pub fn transaction(&mut self) -> SceneTx<'_> {
+        SceneTx {
+            scene: self,
+            entries: Vec::new(),
+        }
     }
 
     fn last_live_index(&self) -> Option<String> {
@@ -383,6 +390,62 @@ impl Scene {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Buffered multi-operation transaction over a scene. Operations mirror the
+/// standalone methods but accumulate entries; `commit` records them as a single
+/// atomic undo change. Dropping without committing discards the buffer (the
+/// scene mutations already applied stay — only history is affected), so always
+/// `commit` on the success path.
+pub struct SceneTx<'a> {
+    scene: &'a mut Scene,
+    entries: Vec<Entry>,
+}
+
+impl SceneTx<'_> {
+    pub fn add(&mut self, mut el: Element) -> Result<String> {
+        let change = self.scene.add_internal(&mut el)?;
+        self.entries.extend(change.entries);
+        Ok(el.id)
+    }
+
+    pub fn sync_binding_ref(&mut self, target_id: &str, arrow_id: &str, attach: bool) -> Result<()> {
+        let existing = self
+            .scene
+            .elements
+            .get_mut(target_id)
+            .ok_or_else(|| SceneError::UnknownElement(target_id.to_string()))?;
+        let before = existing.clone();
+        let refs = existing.boundElements.get_or_insert_with(Vec::new);
+        if attach && !refs.iter().any(|r| r.id == arrow_id) {
+            refs.push(BoundElementRef {
+                id: arrow_id.to_string(),
+                r#type: "arrow".to_string(),
+            });
+        } else if !attach {
+            refs.retain(|r| r.id != arrow_id);
+            if refs.is_empty() {
+                existing.boundElements = None;
+            }
+        }
+        if *existing != before {
+            existing.version += 1;
+            existing.updated = crate::time::now_ms();
+            self.entries.push(Entry::Mutate {
+                before,
+                after: existing.clone(),
+            });
+        }
+        Ok(())
+    }
+
+    pub fn commit(self) {
+        if !self.entries.is_empty() {
+            self.scene.history.record(Change {
+                entries: self.entries,
+            });
         }
     }
 }

@@ -18,10 +18,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Every element `type` discriminator in the Excalidraw scene format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ElementType {
     #[serde(rename = "selection")]
     Selection,
+    #[default]
     #[serde(rename = "rectangle")]
     Rectangle,
     #[serde(rename = "diamond")]
@@ -181,10 +182,10 @@ pub type LocalPoint = [f64; 2];
 /// The complete element record. See module docs for the flat-struct rationale.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Element {
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default)]
     pub kind: ElementType,
+    #[serde(default)]
     pub id: String,
-
     // ---- geometry ----
     #[serde(default)]
     pub x: f64,
@@ -323,6 +324,15 @@ pub struct Element {
     pub extras: BTreeMap<String, Value>,
 }
 
+/// `Default` must agree with the serde field defaults — constructing via
+/// `json!({})` deserialization guarantees it by construction (a hand-written
+/// impl drifted once and produced invisible `strokeWidth: 0` arrows).
+impl Default for Element {
+    fn default() -> Self {
+        serde_json::from_value(serde_json::json!({})).expect("empty object restores to defaults")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BoundElementRef {
     pub id: String,
@@ -452,5 +462,20 @@ mod tests {
             }
             _ => panic!("expected fixed binding"),
         }
+    }
+}
+
+#[cfg(test)]
+mod default_tests {
+    use super::*;
+
+    #[test]
+    fn default_matches_serde_defaults() {
+        let d = Element::default();
+        assert_eq!(d.strokeWidth, 2.0);
+        assert_eq!(d.opacity, 100);
+        assert_eq!(d.strokeColor, "#1e1e1e");
+        assert_eq!(d.roughness, 1);
+        assert_eq!(d.kind, ElementType::Rectangle);
     }
 }

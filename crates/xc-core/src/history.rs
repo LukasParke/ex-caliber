@@ -33,7 +33,7 @@ impl Change {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct History {
     undo_stack: Vec<Change>,
     redo_stack: Vec<Change>,
