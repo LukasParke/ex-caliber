@@ -4,3 +4,9 @@
 //! fractional indexing + undo stack (M1).
 
 pub mod element;
+pub mod findex;
+pub mod file;
+pub mod history;
+pub mod idgen;
+pub mod scene;
+pub mod time;
