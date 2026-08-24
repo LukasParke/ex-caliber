@@ -60,7 +60,7 @@ impl XcMcpServer {
         Ok(())
     }
 
-    fn persist(&self, scene: &Scene) -> Result<(), CallToolResult> {
+    fn persist(&self, scene: &Scene) -> Result<(), Box<CallToolResult>> {
         let Some(path) = &self.path else {
             return Ok(());
         };
@@ -68,17 +68,17 @@ impl XcMcpServer {
         let tmp = path.with_extension("excalidraw.tmp");
         std::fs::write(&tmp, body)
             .and_then(|_| std::fs::rename(&tmp, path.as_ref()))
-            .map_err(|e| tool_error(format!("persist failed: {e}")))
+            .map_err(|e| Box::new(tool_error(format!("persist failed: {e}"))))
     }
 
     fn with_scene<T>(
         &self,
         f: impl FnOnce(&mut Scene) -> Result<T, String>,
-    ) -> Result<T, CallToolResult> {
+    ) -> Result<T, Box<CallToolResult>> {
         let mut scene = self.scene.lock().map_err(|_| {
             tool_error("scene lock poisoned")
         })?;
-        let out = f(&mut scene).map_err(tool_error)?;
+        let out = f(&mut scene).map_err(|e| Box::new(tool_error(e)))?;
         self.persist(&scene)?;
         Ok(out)
     }
@@ -89,9 +89,10 @@ impl XcMcpServer {
         &self,
         f: impl FnOnce(&mut Scene) -> Result<Value, String>,
     ) -> Result<CallToolResult, McpError> {
-        Ok(self.with_scene(f)
-            .map(|v| CallToolResult::success(vec![ContentBlock::text(v.to_string())]))
-            .unwrap_or_else(std::convert::identity))
+        match self.with_scene(f) {
+            Ok(v) => Ok(CallToolResult::success(vec![ContentBlock::text(v.to_string())])),
+            Err(boxed) => Ok(*boxed),
+        }
     }
 
     fn snapshot(&self) -> Result<Scene, McpError> {
