@@ -1,13 +1,16 @@
 //! `xc` — the ExCaliber binary.
 //!
-//! Subcommands grow with milestones: `spike` (M0, default while the GUI is young),
-//! `mcp` (M2, headless MCP server), `headless` (M2+), `export` (M6),
+//! Subcommands grow with milestones: `spike` (M0), `mcp` (M2, headless MCP
+//! server), `<file.excalidraw>` (M3, canvas viewer), `headless`/`export`/
 //! `install-claude` (M6).
 
 fn main() {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         None | Some("spike") => xc_canvas::run_spike(),
+        Some(path) if path.ends_with(".excalidraw") => {
+            xc_canvas::open_scene_window(Some(std::path::PathBuf::from(path)))
+        }
         Some("mcp") => {
             let mut file = None;
             let mut rest = args.peekable();
@@ -33,7 +36,7 @@ fn main() {
         }
         Some(other) => {
             eprintln!("xc: unknown command `{other}`");
-            eprintln!("usage: xc [spike|mcp]");
+            eprintln!("usage: xc [spike|mcp|<file.excalidraw>]");
             std::process::exit(2);
         }
     }

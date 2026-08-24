@@ -1,0 +1,260 @@
+{
+ "type": "excalidraw",
+ "version": 2,
+ "source": "https://excalidraw.com",
+ "elements": [
+  {
+   "type": "rectangle",
+   "id": "r1",
+   "x": 0,
+   "y": 0,
+   "width": 120,
+   "height": 70,
+   "angle": 0,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "#a5d8ff",
+   "fillStyle": "solid",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roundness": {
+    "type": 3,
+    "value": 12.0
+   },
+   "roughness": 1,
+   "opacity": 100,
+   "seed": 12345,
+   "version": 4,
+   "versionNonce": 678,
+   "isDeleted": false,
+   "groupIds": [],
+   "frameId": null,
+   "boundElements": [
+    {
+     "id": "a1",
+     "type": "arrow"
+    }
+   ],
+   "updated": 1756000000000,
+   "link": null,
+   "locked": false
+  },
+  {
+   "type": "diamond",
+   "id": "d1",
+   "x": 400,
+   "y": -40,
+   "width": 140,
+   "height": 90,
+   "strokeColor": "#e03131",
+   "backgroundColor": "#ffc9c9",
+   "fillStyle": "hachure",
+   "roughness": 2,
+   "opacity": 80,
+   "seed": 777,
+   "version": 2,
+   "versionNonce": 111,
+   "groupIds": [],
+   "frameId": null,
+   "boundElements": [
+    {
+     "id": "a2",
+     "type": "arrow"
+    }
+   ],
+   "updated": 1756000000000,
+   "link": null,
+   "locked": false
+  },
+  {
+   "type": "ellipse",
+   "id": "e1",
+   "x": 700,
+   "y": 0,
+   "width": 90,
+   "height": 90,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "#b2f2bb",
+   "fillStyle": "cross-hatch",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roundness": {
+    "type": 2
+   },
+   "roughness": 1,
+   "opacity": 100,
+   "seed": 999,
+   "version": 1,
+   "versionNonce": 222,
+   "isDeleted": false,
+   "groupIds": [],
+   "frameId": null,
+   "updated": 1756000000000,
+   "link": null,
+   "locked": false
+  },
+  {
+   "type": "arrow",
+   "id": "a1",
+   "x": 120,
+   "y": 35,
+   "width": 280,
+   "height": 0,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     280,
+     0
+    ]
+   ],
+   "startBinding": {
+    "elementId": "r1",
+    "fixedPoint": [
+     1.0,
+     0.5
+    ],
+    "mode": "orbit"
+   },
+   "endBinding": {
+    "elementId": "d1",
+    "fixedPoint": [
+     0.0,
+     0.5
+    ],
+    "mode": "orbit"
+   },
+   "startArrowhead": null,
+   "endArrowhead": "triangle",
+   "elbowed": false,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "dashed",
+   "roughness": 1,
+   "opacity": 100,
+   "seed": 4444,
+   "version": 3,
+   "versionNonce": 555,
+   "isDeleted": false,
+   "groupIds": [],
+   "frameId": null,
+   "updated": 1756000000000,
+   "link": null,
+   "locked": false
+  },
+  {
+   "type": "text",
+   "id": "t1",
+   "x": 430,
+   "y": 60,
+   "width": 120,
+   "height": 25,
+   "fontSize": 20,
+   "fontFamily": 1,
+   "text": "hello world",
+   "textAlign": "center",
+   "verticalAlign": "top",
+   "containerId": null,
+   "originalText": "hello world",
+   "autoResize": true,
+   "lineHeight": 1.25,
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "opacity": 100,
+   "seed": 8888,
+   "version": 2,
+   "versionNonce": 999,
+   "isDeleted": false,
+   "groupIds": [],
+   "frameId": null,
+   "updated": 1756000000000,
+   "link": null,
+   "locked": false
+  },
+  {
+   "type": "freedraw",
+   "id": "fd1",
+   "x": 0,
+   "y": 200,
+   "width": 30,
+   "height": 40,
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     10,
+     25
+    ],
+    [
+     30,
+     40
+    ]
+   ],
+   "pressures": [
+    0.5,
+    0.7,
+    0.4
+   ],
+   "simulatePressure": true,
+   "strokeOptions": {
+    "variability": "constant",
+    "streamline": 0.5
+   },
+   "strokeColor": "#1e1e1e",
+   "backgroundColor": "transparent",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 1,
+   "opacity": 100,
+   "seed": 3333,
+   "version": 1,
+   "versionNonce": 12,
+   "isDeleted": false,
+   "groupIds": [],
+   "frameId": null,
+   "updated": 1756000000000,
+   "link": null,
+   "locked": false
+  },
+  {
+   "type": "frame",
+   "id": "fr1",
+   "x": -50,
+   "y": -100,
+   "width": 900,
+   "height": 400,
+   "name": "demo",
+   "strokeColor": "#bbbbbb",
+   "backgroundColor": "transparent",
+   "fillStyle": "hachure",
+   "strokeWidth": 2,
+   "strokeStyle": "dashed",
+   "roundness": null,
+   "roughness": 1,
+   "opacity": 100,
+   "seed": 22222,
+   "version": 1,
+   "versionNonce": 33,
+   "isDeleted": false,
+   "groupIds": [],
+   "frameId": null,
+   "updated": 1756000000000,
+   "link": null,
+   "locked": false
+  }
+ ],
+ "appState": {
+  "viewBackgroundColor": "#ffffff"
+ },
+ "files": {}
+}

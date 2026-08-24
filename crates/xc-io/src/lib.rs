@@ -306,6 +306,18 @@ fn fmt(v: f64) -> String {
     }
 }
 
+/// Decode an embedded file (`files[fileId].dataURL`) into (mime, bytes).
+pub fn decode_file_data(files: &serde_json::Value, file_id: &str) -> Option<(String, Vec<u8>)> {
+    let url = files.get(file_id)?.get("dataURL")?.as_str()?;
+    let rest = url.strip_prefix("data:")?;
+    let (mime, b64) = rest.split_once(";base64,")?;
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64.trim())
+        .ok()?;
+    Some((mime.to_string(), bytes))
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -347,6 +359,17 @@ mod tests {
         assert!(svg.contains("<path"));
         assert!(svg.contains("<text"));
         assert!(svg.contains("viewBox"));
+    }
+
+    #[test]
+    fn decodes_embedded_file_data() {
+        let files = serde_json::json!({
+            "f1": {"dataURL": "data:image/png;base64,aGVsbG8="}
+        });
+        let (mime, bytes) = decode_file_data(&files, "f1").unwrap();
+        assert_eq!(mime, "image/png");
+        assert_eq!(bytes, b"hello");
+        assert!(decode_file_data(&files, "missing").is_none());
     }
 
     #[test]

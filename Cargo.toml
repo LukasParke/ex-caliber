@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/xc", "crates/xc-core", "crates/xc-canvas", "crates/xc-io", "crates/xc-mcp"]
+members = ["crates/xc", "crates/xc-core", "crates/xc-canvas", "crates/xc-io", "crates/xc-mcp", "crates/xc-render"]
 
 [workspace.package]
 version = "0.1.0"
@@ -18,3 +18,4 @@ xc-core = { path = "crates/xc-core" }
 xc-canvas = { path = "crates/xc-canvas" }
 xc-io = { path = "crates/xc-io" }
 xc-mcp = { path = "crates/xc-mcp" }
+xc-render = { path = "crates/xc-render" }
