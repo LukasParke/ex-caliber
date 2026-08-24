@@ -1,0 +1,13 @@
+[package]
+name = "xc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "xc"
+path = "src/main.rs"
+
+[dependencies]
+gpui.workspace = true
+xc-canvas.workspace = true

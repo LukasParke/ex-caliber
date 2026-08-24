@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["crates/xc", "crates/xc-core", "crates/xc-canvas"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+# Dev-profile opt-in for dependencies: GPUI apps are unusable at opt-level=0 in deps
+# (tessellation + text shaping dominate); our own code stays fast to rebuild.
+[profile.dev.package."*"]
+opt-level = 3
+
+[workspace.dependencies]
+gpui = "0.2"
+xc-core = { path = "crates/xc-core" }
+xc-canvas = { path = "crates/xc-canvas" }
