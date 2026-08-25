@@ -1,5 +1,1 @@
-# Linkers mmap multi-GB temporaries in TMPDIR; on this box /tmp is a small
-# tmpfs shared with other projects and fills up (SIGBUS in ld). Keep build
-# temporaries on the big NVMe filesystem instead.
-[env]
-TMPDIR = "/home/luke/github/ex-caliber/target/tmp"
+# Workspace-local cargo settings (portable — no machine-specific paths).
