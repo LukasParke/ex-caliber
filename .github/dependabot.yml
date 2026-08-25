@@ -1,0 +1,21 @@
+# Dependency policy: versions are PINNED deliberately.
+#
+# gpui is pre-1.0 and its API churns; upgrades happen deliberately (see
+# PLAN.md §9 — "pin exact revision, upgrade deliberately"). Dependabot
+# version-update PRs are therefore disabled via open-pull-requests-limit.
+# Vulnerability ALERTS remain enabled in repo settings for visibility;
+# bumps land as manual, reviewed commits.
+
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
