@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ExCaliber
+GenericName=Diagram Editor
+Comment=Excalidraw-compatible whiteboard, MCP-native for coding agents
+Exec=xc %f
+Icon=ex-caliber
+Terminal=false
+Categories=Graphics;VectorGraphics;Development;
+MimeType=application/json;
+Keywords=whiteboard;diagram;drawing;excalidraw;mcp;

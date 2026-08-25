@@ -1,0 +1,56 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            archive: ex-caliber-linux-x86_64.tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: ex-caliber-macos-arm64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: ex-caliber-windows-x86_64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libfontconfig1-dev \
+            libx11-dev libasound2-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p xc --target ${{ matrix.target }}
+      - name: Stage (unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p stage
+          cp target/${{ matrix.target }}/release/xc stage/
+          cp LICENSE-MIT LICENSE-APACHE PLAN.md stage/
+          tar czf ${{ matrix.archive }} -C stage .
+      - name: Stage (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory stage | Out-Null
+          Copy-Item target/${{ matrix.target }}/release/xc.exe stage/
+          Copy-Item LICENSE-MIT, LICENSE-APACHE, PLAN.md stage/
+          Compress-Archive -Path stage/* -DestinationPath ${{ matrix.archive }}
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.archive }}

@@ -1,0 +1,44 @@
+# Maintainer: Luke <luke@localhost>
+# ExCaliber — Excalidraw-compatible native whiteboard with a built-in MCP server.
+# Build from the repo (no upstream release tarball yet): place this file in the
+# repo root and run `makepkg -f`. A release-tagged variant would swap source=()
+# for a git tag.
+
+pkgname=ex-caliber-git
+pkgver=r$(git rev-list --count HEAD 2>/dev/null || echo 0).$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+pkgrel=1
+pkgdesc="Excalidraw-compatible native drawing/diagramming app, MCP-native for coding agents"
+arch=(x86_64)
+url="https://github.com/luke/ex-caliber"
+license=(MIT Apache-2.0)
+depends=(glibc wayland libx11 libxkbcommon fontconfig)
+makedepends=(git rust clang)
+provides=(ex-caliber)
+conflicts=(ex-caliber)
+source=("$pkgname::git+file://$PWD")
+sha256sums=(SKIP)
+options=(!lto)
+
+pkgver() {
+  cd "$srcdir/$pkgname"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd "$srcdir/$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo build --release --locked -p xc
+}
+
+check() {
+  cd "$srcdir/$pkgname"
+  cargo test --release --locked -p xc-core
+}
+
+package() {
+  cd "$srcdir/$pkgname"
+  install -Dm755 target/release/xc "$pkgdir/usr/bin/xc"
+  install -Dm644 packaging/ex-caliber.desktop "$pkgdir/usr/share/applications/ex-caliber.desktop"
+  install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
+  install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
+}

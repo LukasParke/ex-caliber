@@ -58,6 +58,21 @@ impl SceneCanvas {
         }
     }
 
+    /// Atomic save to the backing file (tmp + rename): every committed gesture
+    /// lands on disk, so a crash loses at most the in-flight gesture.
+    fn persist(&self) {
+        let Some(path) = &self.file else { return };
+        let scene = match self.scene.lock() {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+        let body = xc_core::file::save_scene_to_string(&scene);
+        let tmp = path.with_extension("excalidraw.tmp");
+        if let Err(e) = std::fs::write(&tmp, body).and_then(|_| std::fs::rename(&tmp, path)) {
+            eprintln!("xc: autosave failed: {e}");
+        }
+    }
+
     fn to_world(&self, screen: Point<Pixels>) -> (f64, f64) {
         (
             (f64::from(screen.x) - f64::from(self.pan.x)) / self.zoom,
@@ -416,6 +431,7 @@ impl Render for SceneCanvas {
                         cx.listener(|this, ev: &MouseUpEvent, _, cx| {
                             let (wx, wy) = this.to_world(ev.position);
                             this.tools.pointer_up(&mut this.scene.lock().unwrap(), wx, wy);
+                            this.persist();
                             cx.notify();
                         }),
                     )
@@ -445,6 +461,10 @@ impl Render for SceneCanvas {
                                     }
                                     "y" => {
                                         scene.redo();
+                                    }
+                                    "s" => {
+                                        drop(scene);
+                                        this.persist();
                                     }
                                     "d" => this.tools.duplicate_selection(&mut scene),
                                     "g" => {
