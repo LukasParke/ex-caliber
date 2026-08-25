@@ -51,6 +51,6 @@ jobs:
           Copy-Item target/${{ matrix.target }}/release/xc.exe stage/
           Copy-Item LICENSE-MIT, LICENSE-APACHE, PLAN.md stage/
           Compress-Archive -Path stage/* -DestinationPath ${{ matrix.archive }}
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: ${{ matrix.archive }}
