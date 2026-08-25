@@ -6,6 +6,7 @@
 //! through the same `Arc<Mutex<Scene>>`.
 
 mod scene_canvas;
+pub mod text_edit;
 pub mod tools;
 mod spike;
 

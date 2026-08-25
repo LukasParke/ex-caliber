@@ -30,6 +30,8 @@ pub struct SceneCanvas {
     images: HashMap<String, Option<Arc<RenderImage>>>,
     /// Interaction state machine (selection, creation, drags).
     tools: crate::tools::ToolState,
+    /// Active inline text-editing session, if any.
+    text_edit: Option<crate::text_edit::TextEditState>,
     focus: gpui::FocusHandle,
 }
 
@@ -54,6 +56,7 @@ impl SceneCanvas {
             dragging: false,
             images: HashMap::new(),
             tools: ToolState::default(),
+            text_edit: None,
             focus: cx.focus_handle().clone(),
         }
     }
@@ -70,6 +73,35 @@ impl SceneCanvas {
         let tmp = path.with_extension("excalidraw.tmp");
         if let Err(e) = std::fs::write(&tmp, body).and_then(|_| std::fs::rename(&tmp, path)) {
             eprintln!("xc: autosave failed: {e}");
+        }
+    }
+
+    /// Enter inline edit mode for a text element.
+    fn begin_text_edit(&mut self, id: &str) {
+        if let Some(el) = self.scene.lock().unwrap().get(id).cloned() {
+            self.text_edit = Some(crate::text_edit::TextEditState::new(
+                id,
+                el.text.as_deref().unwrap_or(""),
+            ));
+            self.tools.selection.clear();
+            self.tools.selection.insert(id.to_string());
+        }
+    }
+
+    /// Commit the editing session: write text back, re-measure, persist.
+    fn commit_text_edit(&mut self) {
+        let Some(ed) = self.text_edit.take() else { return };
+        let mut scene = self.scene.lock().unwrap();
+        if let Some(el) = scene.get(&ed.element_id).cloned() {
+            let mut next = el.clone();
+            next.text = Some(ed.text().to_string());
+            next.originalText = Some(ed.text().to_string());
+            xc_core::text::global_engine().reflow(&mut next);
+            next.version = el.version + 1;
+            next.updated = xc_core::time::now_ms();
+            scene.replace_silent(next);
+            drop(scene);
+            self.persist();
         }
     }
 
@@ -124,6 +156,7 @@ fn srgba_to_hsla(c: Srgba) -> gpui::Hsla {
     gpui::rgba(hex).into()
 }
 
+#[derive(Clone, Copy)]
 struct Viewport {
     pan: Point<Pixels>,
     zoom: f64,
@@ -132,7 +165,7 @@ struct Viewport {
 }
 
 impl Viewport {
-    fn to_screen(&self, x: f64, y: f64) -> (f32, f32) {
+    fn to_screen(self, x: f64, y: f64) -> (f32, f32) {
         (
             (x * self.zoom) as f32 + f32::from(self.pan.x),
             (y * self.zoom) as f32 + f32::from(self.pan.y),
@@ -195,6 +228,63 @@ fn paint_element(el: &Element, vp: &Viewport, window: &mut Window) {
             };
             window.paint_path(path, srgba_to_hsla(color));
         }
+    }
+}
+
+impl SceneCanvas {
+    /// Editing overlay: working text, selection box, and a caret bar at the
+    /// caret position (prefix width measured by the text engine).
+    fn render_text_editor(&self, el: &Element, vp: Viewport) -> gpui::AnyElement {
+        let ed = self.text_edit.as_ref().unwrap();
+        let engine = xc_core::text::global_engine();
+        let family = xc_core::text::family_for(el.fontFamily.unwrap_or(1));
+        let font_size = (el.fontSize.unwrap_or(20.0) * vp.zoom).max(4.0);
+        let line_px = font_size * el.lineHeight.unwrap_or(1.25);
+        let text = ed.text();
+
+        let (sx, sy) = vp.to_screen(el.x, el.y);
+        let (caret_x, caret_line) = {
+            let prefix = &text[..ed.caret.min(text.len())];
+            let line_start = prefix.rfind('\n').map(|i| i + 1).unwrap_or(0);
+            let col = &prefix[line_start..];
+            let (w, _) = engine.measure(col, family, el.fontSize.unwrap_or(20.0), 1.0);
+            let line_i = text[..ed.caret.min(text.len())].matches('\n').count();
+            (
+                sx + (w * vp.zoom) as f32,
+                sy + (line_i as f64 * line_px * vp.zoom) as f32,
+            )
+        };
+
+        let mut lines: Vec<gpui::AnyElement> = Vec::new();
+        for line in text.split('\n') {
+            lines.push(
+                div()
+                    .font_family(family)
+                    .text_size(px(font_size as f32))
+                    .line_height(px(line_px as f32))
+                    .text_color(gpui::black())
+                    .child(SharedString::from(line.to_string()))
+                    .into_any_element(),
+            );
+        }
+
+        div()
+            .absolute()
+            .left(px(sx))
+            .top(px(sy))
+            .border_1()
+            .border_color(gpui::rgb(0x2383e2))
+            .children(lines)
+            .child(
+                div()
+                    .absolute()
+                    .left(px(caret_x - sx))
+                    .top(px(caret_line - sy))
+                    .w(px(2.))
+                    .h(px(line_px as f32))
+                    .bg(gpui::rgb(0x2383e2)),
+            )
+            .into_any_element()
     }
 }
 
@@ -284,6 +374,15 @@ impl Render for SceneCanvas {
 
         for el in &snapshot {
             if el.kind == ElementType::Text {
+                if self
+                    .text_edit
+                    .as_ref()
+                    .map(|ed| ed.element_id == el.id)
+                    .unwrap_or(false)
+                {
+                    overlays.push(self.render_text_editor(el, vp_seed));
+                    continue;
+                }
                 let (w, h) = el.effective_size();
                 let (sx, sy) = vp_seed.to_screen(el.x, el.y);
                 let font_size = (el.fontSize.unwrap_or(20.0) * self.zoom).max(4.0);
@@ -373,9 +472,10 @@ impl Render for SceneCanvas {
                 div()
                     .flex_grow()
                     .relative()
-                    .child(canvas(
-                        move |bounds, _, _| bounds.size,
-                        move |bounds, viewport_size, window, _| {
+                    .child(
+                        canvas(
+                            move |bounds, _, _| bounds.size,
+                            move |bounds, viewport_size, window, _| {
                             let vp = Viewport {
                                 pan,
                                 zoom,
@@ -409,13 +509,35 @@ impl Render for SceneCanvas {
                             let _ = bounds;
                             let _ = tool;
                         },
-                    ))
+                        )
+                        .size_full(),
+                    )
                     .when(!overlays.is_empty(), |d| d.children(overlays))
                     .track_focus(&self.focus)
                     .on_mouse_down(
                         gpui::MouseButton::Left,
                         cx.listener(|this, ev: &MouseDownEvent, window, cx| {
                             let (wx, wy) = this.to_world(ev.position);
+                            if this.text_edit.is_some() {
+                                this.commit_text_edit();
+                                cx.notify();
+                                return;
+                            }
+                            if ev.click_count == 2 {
+                                let hit = {
+                                    let scene = this.scene.lock().unwrap();
+                                    let ordered = scene.ordered();
+                                    xc_core::hit_test::topmost(ordered.iter().copied(), wx, wy)
+                                        .filter(|e| e.kind == ElementType::Text)
+                                        .map(|e| e.id.clone())
+                                };
+                                if let Some(id) = hit {
+                                    this.begin_text_edit(&id);
+                                    this.focus.focus(window);
+                                    cx.notify();
+                                    return;
+                                }
+                            }
                             this.tools
                                 .pointer_down(&mut this.scene.lock().unwrap(), wx, wy, ev.modifiers.shift);
                             this.focus.focus(window);
@@ -456,6 +578,33 @@ impl Render for SceneCanvas {
                     .on_key_down(cx.listener(|this, ev: &gpui::KeyDownEvent, _, cx| {
                         let key = ev.keystroke.key.as_str();
                         let ctrl = ev.keystroke.modifiers.control || ev.keystroke.modifiers.platform;
+
+                        // Inline text editing captures everything while active.
+                        if let Some(ed) = &mut this.text_edit {
+                            match key {
+                                "escape" => this.commit_text_edit(),
+                                "backspace" => ed.backspace(),
+                                "delete" => ed.delete(),
+                                "left" => ed.caret_left(),
+                                "right" => ed.caret_right(),
+                                "home" => ed.caret_home(),
+                                "end" => ed.caret_end(),
+                                "enter" => ed.newline(),
+                                k if !ctrl && k.len() == 1 => {
+                                    let ch = if ev.keystroke.modifiers.shift {
+                                        k.to_uppercase()
+                                    } else {
+                                        k.to_string()
+                                    };
+                                    ed.input(&ch);
+                                }
+                                "space" => ed.input(" "),
+                                _ => {}
+                            }
+                            cx.notify();
+                            return;
+                        }
+
                         let mut handled = true;
                         {
                             let mut scene = this.scene.lock().unwrap();

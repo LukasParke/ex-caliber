@@ -180,12 +180,15 @@ impl Render for SpikeView {
             .child(
                 div()
                     .flex_grow()
-                    .child(canvas(
-                        move |_, _, _| {},
-                        move |bounds, (), window, _| {
-                            paint_scene(bounds, pan, zoom, &quads, &visible_count, window);
-                        },
-                    ))
+                    .child(
+                        canvas(
+                            move |_, _, _| {},
+                            move |bounds, (), window, _| {
+                                paint_scene(bounds, pan, zoom, &quads, &visible_count, window);
+                            },
+                        )
+                        .size_full(),
+                    )
                     .on_mouse_down(
                         gpui::MouseButton::Left,
                         cx.listener(|this, ev: &MouseDownEvent, _, _| {
