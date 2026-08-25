@@ -38,6 +38,8 @@ pub fn new_id() -> String {
 pub fn new_seed(existing: Option<i64>) -> i64 {
     match existing {
         Some(s) if s != 0 => s,
-        _ => (next_u64().min(i64::MAX as u64) as i64) | 1,
+        // Take the top 63 bits' worth of entropy as positive i64; a `.min()`
+        // clamp here collapsed every large draw to i64::MAX (identical seeds).
+        _ => ((next_u64() >> 1) as i64) | 1,
     }
 }

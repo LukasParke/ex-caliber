@@ -342,11 +342,11 @@ impl XcMcpServer {
                 endArrowhead: p.end_arrowhead.clone().or_else(|| Some("triangle".into())),
                 ..Default::default()
             };
-            let mut tx = scene.transaction();
-            let arrow_id = tx.add(arrow).map_err(|e| e.to_string())?;
-            tx.sync_binding_ref(&p.from_id, &arrow_id, true)
+            let mut tx = xc_core::scene::SceneTx::default();
+            let arrow_id = tx.add(scene, arrow).map_err(|e| e.to_string())?;
+            tx.sync_binding_ref(scene, &p.from_id, &arrow_id, true)
                 .map_err(|e| e.to_string())?;
-            tx.sync_binding_ref(&p.to_id, &arrow_id, true)
+            tx.sync_binding_ref(scene, &p.to_id, &arrow_id, true)
                 .map_err(|e| e.to_string())?;
 
             if let Some(label) = &p.label {
@@ -362,9 +362,9 @@ impl XcMcpServer {
                     height: 24.0,
                     ..Default::default()
                 };
-                tx.add(text).map_err(|e| e.to_string())?;
+                tx.add(scene, text).map_err(|e| e.to_string())?;
             }
-            tx.commit();
+            tx.commit(scene);
             Ok(json!({ "arrow_id": arrow_id }))
         })
     }

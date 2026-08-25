@@ -6,6 +6,7 @@
 //! through the same `Arc<Mutex<Scene>>`.
 
 mod scene_canvas;
+pub mod tools;
 mod spike;
 
 pub use scene_canvas::{open_scene_window, SceneCanvas};

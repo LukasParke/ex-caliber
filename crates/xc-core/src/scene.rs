@@ -17,6 +17,7 @@ pub enum SceneError {
     DuplicateId(String),
     UnknownElement(String),
     OrderKey(String),
+    Other(String),
 }
 
 impl std::fmt::Display for SceneError {
@@ -25,6 +26,7 @@ impl std::fmt::Display for SceneError {
             SceneError::DuplicateId(id) => write!(f, "duplicate element id: {id}"),
             SceneError::UnknownElement(id) => write!(f, "unknown element id: {id}"),
             SceneError::OrderKey(msg) => write!(f, "ordering key error: {msg}"),
+            SceneError::Other(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -82,17 +84,21 @@ impl Scene {
 
     /// Bulk insert used by the file loader: assigns bookkeeping but records no
     /// history (loading a document is not an edit).
+    /// Overwrite an element without touching history (live-drag internals).
+    pub fn replace_silent(&mut self, el: Element) {
+        if self.elements.contains_key(&el.id) {
+            self.elements.insert(el.id.clone(), el);
+        }
+    }
+
     pub fn add_silent(&mut self, mut el: Element) -> Result<String> {
         self.add_internal(&mut el)?;
         Ok(el.id)
     }
 
     /// Begin an atomic multi-op transaction; `commit` records ONE undo entry.
-    pub fn transaction(&mut self) -> SceneTx<'_> {
-        SceneTx {
-            scene: self,
-            entries: Vec::new(),
-        }
+    pub fn transaction(&self) -> SceneTx {
+        SceneTx::default()
     }
 
     fn last_live_index(&self) -> Option<String> {
@@ -399,21 +405,46 @@ impl Scene {
 /// atomic undo change. Dropping without committing discards the buffer (the
 /// scene mutations already applied stay — only history is affected), so always
 /// `commit` on the success path.
-pub struct SceneTx<'a> {
-    scene: &'a mut Scene,
+#[derive(Default)]
+pub struct SceneTx {
     entries: Vec<Entry>,
 }
 
-impl SceneTx<'_> {
-    pub fn add(&mut self, mut el: Element) -> Result<String> {
-        let change = self.scene.add_internal(&mut el)?;
+impl SceneTx {
+    /// Add an element inside the transaction (bookkeeping assigned, no history yet).
+    pub fn add(&mut self, scene: &mut Scene, mut el: Element) -> Result<String> {
+        let change = scene.add_internal(&mut el)?;
         self.entries.extend(change.entries);
         Ok(el.id)
     }
 
-    pub fn sync_binding_ref(&mut self, target_id: &str, arrow_id: &str, attach: bool) -> Result<()> {
-        let existing = self
-            .scene
+    /// Apply a whole-element mutation to the scene AND buffer its undo entry.
+    pub fn push_mutation(
+        &mut self,
+        scene: &mut Scene,
+        before: Element,
+        after: Element,
+    ) -> Result<()> {
+        if before == after {
+            return Ok(());
+        }
+        if scene.elements.contains_key(&after.id) {
+            scene.elements.insert(after.id.clone(), after.clone());
+        } else {
+            return Err(SceneError::UnknownElement(after.id.clone()));
+        }
+        self.entries.push(Entry::Mutate { before, after });
+        Ok(())
+    }
+
+    pub fn sync_binding_ref(
+        &mut self,
+        scene: &mut Scene,
+        target_id: &str,
+        arrow_id: &str,
+        attach: bool,
+    ) -> Result<()> {
+        let existing = scene
             .elements
             .get_mut(target_id)
             .ok_or_else(|| SceneError::UnknownElement(target_id.to_string()))?;
@@ -430,20 +461,19 @@ impl SceneTx<'_> {
                 existing.boundElements = None;
             }
         }
-        if *existing != before {
+        if existing != &before {
             existing.version += 1;
             existing.updated = crate::time::now_ms();
-            self.entries.push(Entry::Mutate {
-                before,
-                after: existing.clone(),
-            });
+            let after = existing.clone();
+            self.entries.push(Entry::Mutate { before, after });
         }
         Ok(())
     }
 
-    pub fn commit(self) {
+    /// Record the buffered entries as ONE undo change.
+    pub fn commit(self, scene: &mut Scene) {
         if !self.entries.is_empty() {
-            self.scene.history.record(Change {
+            scene.history.record(Change {
                 entries: self.entries,
             });
         }

@@ -3,7 +3,9 @@
 //! Lands in slices: element vocabulary (now) → full typed schema + restore semantics +
 //! fractional indexing + undo stack (M1).
 
+pub mod edit;
 pub mod element;
+pub mod hit_test;
 pub mod findex;
 pub mod file;
 pub mod history;

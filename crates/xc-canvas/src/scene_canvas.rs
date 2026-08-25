@@ -14,6 +14,7 @@ use lyon::math::Transform;
 use roughr::Srgba;
 use xc_core::element::{Element, ElementType};
 use xc_core::scene::Scene;
+use crate::tools::{Tool, ToolState};
 use xc_render::DrawOp;
 
 /// Scene shared between the canvas and (later) the in-process MCP bridge.
@@ -25,14 +26,16 @@ pub struct SceneCanvas {
     pan: Point<Pixels>,
     zoom: f64,
     dragging: bool,
-    last_mouse: Point<Pixels>,
     /// Decoded images by fileId, filled lazily during render.
     images: HashMap<String, Option<Arc<RenderImage>>>,
+    /// Interaction state machine (selection, creation, drags).
+    tools: crate::tools::ToolState,
+    focus: gpui::FocusHandle,
 }
 
 impl SceneCanvas {
     /// Load from disk (missing file → empty scene).
-    pub fn load(file: Option<PathBuf>) -> Self {
+    pub fn load(file: Option<PathBuf>, cx: &mut App) -> Self {
         let scene = file
             .as_deref()
             .filter(|p| p.exists())
@@ -49,9 +52,17 @@ impl SceneCanvas {
             pan: Point { x: px(60.0), y: px(60.0) },
             zoom: 1.0,
             dragging: false,
-            last_mouse: Point::default(),
             images: HashMap::new(),
+            tools: ToolState::default(),
+            focus: cx.focus_handle().clone(),
         }
+    }
+
+    fn to_world(&self, screen: Point<Pixels>) -> (f64, f64) {
+        (
+            (f64::from(screen.x) - f64::from(self.pan.x)) / self.zoom,
+            (f64::from(screen.y) - f64::from(self.pan.y)) / self.zoom,
+        )
     }
 
     fn status_text(&self, visible: usize, total: usize) -> String {
@@ -167,6 +178,42 @@ fn paint_element(el: &Element, vp: &Viewport, window: &mut Window) {
     }
 }
 
+fn paint_selection_box(el: &Element, vp: &Viewport, window: &mut Window) {
+    let (w, h) = el.effective_size();
+    let (sx, sy) = vp.to_screen(el.x, el.y);
+    let sw = (w * vp.zoom) as f32;
+    let sh = (h * vp.zoom) as f32;
+    let bounds = gpui::Bounds {
+        origin: Point { x: px(sx - 2.0), y: px(sy - 2.0) },
+        size: size(px(sw + 4.0), px(sh + 4.0)),
+    };
+    window.paint_quad(gpui::quad(
+        bounds,
+        px(0.),
+        gpui::transparent_black(),
+        px(1.),
+        gpui::rgb(0x2383e2),
+        Default::default(),
+    ));
+}
+
+fn paint_marquee(rect: &[f64; 4], vp: &Viewport, window: &mut Window) {
+    let (sx, sy) = vp.to_screen(rect[0], rect[1]);
+    let sw = ((rect[2] - rect[0]) * vp.zoom) as f32;
+    let sh = ((rect[3] - rect[1]) * vp.zoom) as f32;
+    window.paint_quad(gpui::quad(
+        gpui::Bounds {
+            origin: Point { x: px(sx), y: px(sy) },
+            size: size(px(sw), px(sh)),
+        },
+        px(0.),
+        gpui::Background::from(gpui::hsla(0.58, 0.85, 0.5, 0.08)),
+        px(1.),
+        gpui::rgb(0x2383e2),
+        Default::default(),
+    ));
+}
+
 fn op_path(op: &DrawOp) -> &lyon::path::Path {
     match op {
         DrawOp::Fill { path, .. } | DrawOp::Stroke { path, .. } => path,
@@ -277,6 +324,9 @@ impl Render for SceneCanvas {
         let zoom = self.zoom;
         let visible_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let visible_counter = Arc::clone(&visible_count);
+        let ghost = self.tools.ghost();
+        let selection: Vec<String> = self.tools.selection_vec();
+        let tool = self.tools.tool;
 
         let status = self.status_text(0, total);
 
@@ -306,32 +356,53 @@ impl Render for SceneCanvas {
                                 visible += 1;
                                 paint_element(el, &vp, window);
                             }
+                            // Selection outlines.
+                            for id in &selection {
+                                if let Some(el) = paintable.iter().find(|e| &e.id == id)
+                                    .or_else(|| snapshot.iter().find(|e| &e.id == id))
+                                {
+                                    paint_selection_box(el, &vp, window);
+                                }
+                            }
+                            // In-progress gesture.
+                            if let Some(draft) = &ghost.element {
+                                paint_element(draft, &vp, window);
+                            }
+                            if let Some(rect) = &ghost.marquee {
+                                paint_marquee(rect, &vp, window);
+                            }
                             visible_counter.store(visible, std::sync::atomic::Ordering::Relaxed);
                             let _ = bounds;
+                            let _ = tool;
                         },
                     ))
                     .when(!overlays.is_empty(), |d| d.children(overlays))
+                    .track_focus(&self.focus)
                     .on_mouse_down(
                         gpui::MouseButton::Left,
-                        cx.listener(|this, ev: &MouseDownEvent, _, _| {
-                            this.dragging = true;
-                            this.last_mouse = ev.position;
+                        cx.listener(|this, ev: &MouseDownEvent, window, cx| {
+                            let (wx, wy) = this.to_world(ev.position);
+                            this.tools
+                                .pointer_down(&mut this.scene.lock().unwrap(), wx, wy, ev.modifiers.shift);
+                            this.focus.focus(window);
+                            cx.notify();
                         }),
                     )
                     .on_mouse_move(cx.listener(|this, ev: &MouseMoveEvent, _, cx| {
-                        if !this.dragging {
-                            return;
+                        if !this.dragging && this.tools.ghost().element.is_none() {
+                            // Still route moves: hover + drag continuation need them.
                         }
-                        let delta = ev.position - this.last_mouse;
-                        this.pan.x += delta.x;
-                        this.pan.y += delta.y;
-                        this.last_mouse = ev.position;
+                        let (wx, wy) = this.to_world(ev.position);
+                        this.tools
+                            .pointer_move(&mut this.scene.lock().unwrap(), wx, wy, ev.modifiers.shift);
                         cx.notify();
                     }))
                     .on_mouse_up(
                         gpui::MouseButton::Left,
-                        cx.listener(|this, _: &MouseUpEvent, _, _| {
-                            this.dragging = false;
+                        cx.listener(|this, ev: &MouseUpEvent, _, cx| {
+                            let (wx, wy) = this.to_world(ev.position);
+                            this.tools.pointer_up(&mut this.scene.lock().unwrap(), wx, wy);
+                            cx.notify();
                         }),
                     )
                     .on_scroll_wheel(cx.listener(|this, ev: &ScrollWheelEvent, _, cx| {
@@ -346,7 +417,58 @@ impl Render for SceneCanvas {
                         this.pan.x = px((f64::from(cursor.x) - world_x * this.zoom) as f32);
                         this.pan.y = px((f64::from(cursor.y) - world_y * this.zoom) as f32);
                         cx.notify();
-                    })),
+                    }))
+                    .on_key_down(cx.listener(|this, ev: &gpui::KeyDownEvent, _, cx| {
+                        let key = ev.keystroke.key.as_str();
+                        let ctrl = ev.keystroke.modifiers.control || ev.keystroke.modifiers.platform;
+                        let mut handled = true;
+                        {
+                            let mut scene = this.scene.lock().unwrap();
+                            if ctrl {
+                                match key {
+                                    "z" => {
+                                        if ev.keystroke.modifiers.shift { scene.redo(); } else { scene.undo(); }
+                                    }
+                                    "y" => {
+                                        scene.redo();
+                                    }
+                                    "d" => this.tools.duplicate_selection(&mut scene),
+                                    "g" => {
+                                        if ev.keystroke.modifiers.shift { this.tools.ungroup_selection(&mut scene); }
+                                        else { this.tools.group_selection(&mut scene); }
+                                    }
+                                    "a" => {
+                                        let all: std::collections::HashSet<String> = scene
+                                            .ordered()
+                                            .iter()
+                                            .map(|e| e.id.clone())
+                                            .collect();
+                                        this.tools.selection = all;
+                                    }
+                                    _ => handled = false,
+                                }
+                            } else {
+                                match key {
+                                    "escape" => {
+                                        this.tools.set_tool(Tool::Select);
+                                        this.tools.selection.clear();
+                                    }
+                                    "delete" | "backspace" => this.tools.delete_selection(&mut scene),
+                                    "enter" => {}
+                                    k => {
+                                        if let Some(tool) = Tool::from_key(k) {
+                                            this.tools.set_tool(tool);
+                                        } else {
+                                            handled = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if handled {
+                            cx.notify();
+                        }
+                    }))
             )
             .child(
                 div()
@@ -372,7 +494,7 @@ pub fn open_scene_window(file: Option<PathBuf>) {
                 focus: true,
                 ..Default::default()
             },
-            |_window, cx| cx.new(|_cx| SceneCanvas::load(file)),
+            |_window, cx| cx.new(|cx| SceneCanvas::load(file, cx)),
         )
         .unwrap();
         cx.on_window_closed(|cx| cx.quit()).detach();
