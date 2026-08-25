@@ -8,7 +8,7 @@
 
 use crate::element::{Element, ElementType};
 use crate::scene::Scene;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const SOURCE_TAG: &str = "excaliber";
 
@@ -43,8 +43,7 @@ pub fn detect_kind(doc: &Value) -> Option<&str> {
 /// libraries (their items' elements are flattened onto the canvas — same as dragging
 /// library items out).
 pub fn load_document(raw: &str) -> Result<Scene, LoadError> {
-    let doc: Value =
-        serde_json::from_str(raw).map_err(|e| LoadError::Json(e.to_string()))?;
+    let doc: Value = serde_json::from_str(raw).map_err(|e| LoadError::Json(e.to_string()))?;
     Ok(match detect_kind(&doc).unwrap_or("") {
         "excalidraw" => scene_from_envelope(&doc),
         "excalidrawlib" => scene_from_library(&doc),
@@ -83,14 +82,11 @@ fn restore_element(mut el: Value) -> Option<Element> {
     for key in ["x", "y", "width", "height", "angle"] {
         coerce_number(&mut el, key);
     }
-    for key in [
-        "seed", "version", "versionNonce", "roughness", "opacity",
-    ] {
+    for key in ["seed", "version", "versionNonce", "roughness", "opacity"] {
         coerce_number(&mut el, key);
     }
 
-    let mut parsed: Element =
-        serde_json::from_value(el).ok()?;
+    let mut parsed: Element = serde_json::from_value(el).ok()?;
     parsed.kind = kind;
     // Bookkeeping backfill (restore semantics).
     if parsed.id.is_empty() {
@@ -113,10 +109,12 @@ fn restore_element(mut el: Value) -> Option<Element> {
 
 fn coerce_number(el: &mut Value, key: &str) {
     if let Some(v) = el.get_mut(key)
-        && !v.is_number() && !v.is_null()
-            && let Ok(n) = v.as_str().unwrap_or("").parse::<f64>() {
-                *v = json!(n);
-            }
+        && !v.is_number()
+        && !v.is_null()
+        && let Ok(n) = v.as_str().unwrap_or("").parse::<f64>()
+    {
+        *v = json!(n);
+    }
 }
 
 fn scene_from_elements(elements: Vec<Value>) -> Scene {
@@ -226,7 +224,10 @@ mod tests {
 
         let arrow = reloaded.get("a1").unwrap();
         let out_val = serde_json::to_value(arrow).unwrap();
-        assert_eq!(out_val["startBinding"]["fixedPoint"], serde_json::json!([1.0, 0.5]));
+        assert_eq!(
+            out_val["startBinding"]["fixedPoint"],
+            serde_json::json!([1.0, 0.5])
+        );
         assert_eq!(out_val["endBinding"]["gap"], 2.0); // legacy preserved
 
         // Envelope is exactly what excalidraw.com reads.

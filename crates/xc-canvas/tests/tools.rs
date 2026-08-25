@@ -45,8 +45,15 @@ fn drag_creates_rectangle_and_returns_to_select() {
     let ordered = scene.ordered();
     let created = ordered.last().unwrap();
     assert_eq!(created.kind, ElementType::Rectangle);
-    assert_eq!((created.x, created.y, created.width, created.height), (0.0, 200.0, 150.0, 80.0));
-    assert_eq!(ts.tool, Tool::Select, "excalidraw returns to select after draw");
+    assert_eq!(
+        (created.x, created.y, created.width, created.height),
+        (0.0, 200.0, 150.0, 80.0)
+    );
+    assert_eq!(
+        ts.tool,
+        Tool::Select,
+        "excalidraw returns to select after draw"
+    );
     assert!(ts.is_selected(created.id.as_str()));
 }
 
@@ -75,7 +82,11 @@ fn select_and_move_is_one_undo_step() {
     ts.pointer_up(&mut scene, 120.0, 90.0);
 
     let left = scene.get("left").unwrap();
-    assert_eq!((left.x, left.y), (70.0, 60.0), "element follows cursor delta");
+    assert_eq!(
+        (left.x, left.y),
+        (70.0, 60.0),
+        "element follows cursor delta"
+    );
     assert_eq!(scene.get("right").unwrap().x, 300.0, "unselected stays");
 
     assert!(scene.undo());
@@ -171,7 +182,11 @@ fn delete_and_duplicate_selection() {
     assert_eq!(scene.ordered().len(), 3);
 
     ts.delete_selection(&mut scene);
-    assert_eq!(scene.ordered().len(), 2, "tombstones stay, live count drops");
+    assert_eq!(
+        scene.ordered().len(),
+        2,
+        "tombstones stay, live count drops"
+    );
     assert!(ts.selection.is_empty());
 }
 

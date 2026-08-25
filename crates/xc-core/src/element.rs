@@ -446,7 +446,6 @@ mod tests {
         assert_eq!(out["startBinding"]["focus"], 0.1);
     }
 
-
     #[test]
     fn fixed_point_binding_round_trips() {
         let json = r#"{

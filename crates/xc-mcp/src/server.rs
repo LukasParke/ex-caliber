@@ -75,9 +75,10 @@ impl XcMcpServer {
         &self,
         f: impl FnOnce(&mut Scene) -> Result<T, String>,
     ) -> Result<T, Box<CallToolResult>> {
-        let mut scene = self.scene.lock().map_err(|_| {
-            tool_error("scene lock poisoned")
-        })?;
+        let mut scene = self
+            .scene
+            .lock()
+            .map_err(|_| tool_error("scene lock poisoned"))?;
         let out = f(&mut scene).map_err(|e| Box::new(tool_error(e)))?;
         self.persist(&scene)?;
         Ok(out)
@@ -90,7 +91,9 @@ impl XcMcpServer {
         f: impl FnOnce(&mut Scene) -> Result<Value, String>,
     ) -> Result<CallToolResult, McpError> {
         match self.with_scene(f) {
-            Ok(v) => Ok(CallToolResult::success(vec![ContentBlock::text(v.to_string())])),
+            Ok(v) => Ok(CallToolResult::success(vec![ContentBlock::text(
+                v.to_string(),
+            )])),
             Err(boxed) => Ok(*boxed),
         }
     }
@@ -207,13 +210,20 @@ impl XcMcpServer {
     #[tool(
         description = "Read the current scene: element list (id, type, geometry, style, text, bindings). Filter by type or read everything."
     )]
-    fn get_scene(&self, Parameters(p): Parameters<GetSceneParams>) -> Result<CallToolResult, McpError> {
+    fn get_scene(
+        &self,
+        Parameters(p): Parameters<GetSceneParams>,
+    ) -> Result<CallToolResult, McpError> {
         let elements: Vec<Value> = self
             .snapshot()?
             .elements_iter()
             .into_iter()
             .filter(|e| p.include_deleted || !e.isDeleted)
-            .filter(|e| p.type_filter.as_deref().is_none_or(|t| e.kind.as_str() == t))
+            .filter(|e| {
+                p.type_filter
+                    .as_deref()
+                    .is_none_or(|t| e.kind.as_str() == t)
+            })
             .map(|e| serde_json::to_value(e).expect("element serializes"))
             .collect();
         Ok(CallToolResult::success(vec![ContentBlock::text(
@@ -261,13 +271,8 @@ impl XcMcpServer {
                     .get(&patch.id)
                     .ok_or_else(|| format!("unknown id: {}", patch.id))?;
                 let mut value = serde_json::to_value(current).expect("element serializes");
-                let obj = value
-                    .as_object_mut()
-                    .ok_or("element is not an object")?;
-                let fields = patch
-                    .fields
-                    .as_object()
-                    .ok_or("fields must be an object")?;
+                let obj = value.as_object_mut().ok_or("element is not an object")?;
+                let fields = patch.fields.as_object().ok_or("fields must be an object")?;
                 for (k, v) in fields {
                     obj.insert(k.clone(), v.clone());
                 }
@@ -390,7 +395,11 @@ impl XcMcpServer {
                     .cloned()
                     .ok_or_else(|| format!("unknown container: {cid}"))?;
                 let (cw, ch) = c.effective_size();
-                (c.x + (cw - est_width) / 2.0, c.y + (ch - est_height) / 2.0, Some(cid.clone()))
+                (
+                    c.x + (cw - est_width) / 2.0,
+                    c.y + (ch - est_height) / 2.0,
+                    Some(cid.clone()),
+                )
             } else {
                 (
                     p.x.ok_or("x required when container_id is absent")?,
@@ -417,7 +426,9 @@ impl XcMcpServer {
         })
     }
 
-    #[tool(description = "Change paint order: target is front|back|before|after (with relative_to id).")]
+    #[tool(
+        description = "Change paint order: target is front|back|before|after (with relative_to id)."
+    )]
     fn reorder(
         &self,
         Parameters(p): Parameters<ReorderParams>,
@@ -427,7 +438,12 @@ impl XcMcpServer {
             ("back", _) => ReorderTarget::Back,
             ("before", Some(other)) => ReorderTarget::Before(other),
             ("after", Some(other)) => ReorderTarget::After(other),
-            _ => return Err(McpError::invalid_params("target must be front|back|before|after with relative_to for the latter two", None)),
+            _ => {
+                return Err(McpError::invalid_params(
+                    "target must be front|back|before|after with relative_to for the latter two",
+                    None,
+                ));
+            }
         };
         self.scene_tool(|scene| {
             scene.reorder(&p.id, target).map_err(|e| e.to_string())?;
@@ -445,7 +461,6 @@ impl XcMcpServer {
         self.scene_tool(|scene| Ok(json!({ "redone": scene.redo() })))
     }
 
-
     #[tool(
         description = "Render the scene (or the bounding box of specific element ids) to PNG. Use this to visually check your work."
     )]
@@ -458,12 +473,9 @@ impl XcMcpServer {
             Some(ids) => {
                 let mut picked = Vec::with_capacity(ids.len());
                 for id in ids {
-                    picked.push(
-                        scene
-                            .get(id)
-                            .cloned()
-                            .ok_or_else(|| McpError::invalid_params(format!("unknown id: {id}"), None))?,
-                    );
+                    picked.push(scene.get(id).cloned().ok_or_else(|| {
+                        McpError::invalid_params(format!("unknown id: {id}"), None)
+                    })?);
                 }
                 picked
             }
@@ -507,9 +519,12 @@ impl XcMcpServer {
                 let svg = io::scene_to_svg(&scene, 12.0);
                 match &p.path {
                     Some(path) => {
-                        std::fs::write(path, &svg)
-                            .map_err(|e| McpError::internal_error(format!("write failed: {e}"), None))?;
-                        Ok(CallToolResult::success(vec![ContentBlock::text(format!("wrote {path}"))]))
+                        std::fs::write(path, &svg).map_err(|e| {
+                            McpError::internal_error(format!("write failed: {e}"), None)
+                        })?;
+                        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                            "wrote {path}"
+                        ))]))
                     }
                     None => inline("image/svg+xml", svg.into_bytes()),
                 }
@@ -520,9 +535,12 @@ impl XcMcpServer {
                     .map_err(|e| McpError::internal_error(format!("render failed: {e}"), None))?;
                 match &p.path {
                     Some(path) => {
-                        std::fs::write(path, &png)
-                            .map_err(|e| McpError::internal_error(format!("write failed: {e}"), None))?;
-                        Ok(CallToolResult::success(vec![ContentBlock::text(format!("wrote {path}"))]))
+                        std::fs::write(path, &png).map_err(|e| {
+                            McpError::internal_error(format!("write failed: {e}"), None)
+                        })?;
+                        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                            "wrote {path}"
+                        ))]))
                     }
                     None => inline("image/png", png),
                 }
@@ -531,9 +549,12 @@ impl XcMcpServer {
                 let body = xc_core::file::save_scene_to_string(&scene);
                 match &p.path {
                     Some(path) => {
-                        std::fs::write(path, &body)
-                            .map_err(|e| McpError::internal_error(format!("write failed: {e}"), None))?;
-                        Ok(CallToolResult::success(vec![ContentBlock::text(format!("wrote {path}"))]))
+                        std::fs::write(path, &body).map_err(|e| {
+                            McpError::internal_error(format!("write failed: {e}"), None)
+                        })?;
+                        Ok(CallToolResult::success(vec![ContentBlock::text(format!(
+                            "wrote {path}"
+                        ))]))
                     }
                     None => Ok(CallToolResult::success(vec![ContentBlock::text(body)])),
                 }
@@ -581,11 +602,19 @@ fn anchor_points(from: &Element, to: &Element) -> ([f64; 2], LocalPoint) {
         // exits through a vertical side
         (
             0.5 + 0.5 * dx.signum(),
-            if dx != 0.0 { 0.5 + 0.5 * (dy / dx) * (fw / fh) } else { 0.5 },
+            if dx != 0.0 {
+                0.5 + 0.5 * (dy / dx) * (fw / fh)
+            } else {
+                0.5
+            },
         )
     } else {
         (
-            if dy != 0.0 { 0.5 + 0.5 * (dx / dy) * (fh / fw) } else { 0.5 },
+            if dy != 0.0 {
+                0.5 + 0.5 * (dx / dy) * (fh / fw)
+            } else {
+                0.5
+            },
             0.5 + 0.5 * dy.signum(),
         )
     };
@@ -593,8 +622,6 @@ fn anchor_points(from: &Element, to: &Element) -> ([f64; 2], LocalPoint) {
     fy = fy.clamp(0.0, 1.0);
     ([fx, fy], [fx * fw, fy * fh])
 }
-
-
 
 /// Convenience for the binary: run the stdio server to completion.
 pub async fn run_stdio(config: XcServerConfig) -> Result<(), String> {

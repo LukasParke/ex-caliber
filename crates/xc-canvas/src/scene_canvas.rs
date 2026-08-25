@@ -5,16 +5,16 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use crate::tools::{Tool, ToolState};
 use gpui::{
-    canvas, div, img, prelude::*, px, size, App, Application, Bounds, Context, ImageSource,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, RenderImage, ScrollDelta,
-    ScrollWheelEvent, SharedString, Window, WindowBounds, WindowOptions,
+    App, Application, Bounds, Context, ImageSource, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    Pixels, Point, Render, RenderImage, ScrollDelta, ScrollWheelEvent, SharedString, Window,
+    WindowBounds, WindowOptions, canvas, div, img, prelude::*, px, size,
 };
 use lyon::math::Transform;
 use roughr::Srgba;
 use xc_core::element::{Element, ElementType};
 use xc_core::scene::Scene;
-use crate::tools::{Tool, ToolState};
 use xc_render::DrawOp;
 
 /// Scene shared between the canvas and (later) the in-process MCP bridge.
@@ -51,7 +51,10 @@ impl SceneCanvas {
         Self {
             scene: Arc::new(Mutex::new(scene)),
             file,
-            pan: Point { x: px(60.0), y: px(60.0) },
+            pan: Point {
+                x: px(60.0),
+                y: px(60.0),
+            },
             zoom: 1.0,
             dragging: false,
             images: HashMap::new(),
@@ -90,7 +93,9 @@ impl SceneCanvas {
 
     /// Commit the editing session: write text back, re-measure, persist.
     fn commit_text_edit(&mut self) {
-        let Some(ed) = self.text_edit.take() else { return };
+        let Some(ed) = self.text_edit.take() else {
+            return;
+        };
         let mut scene = self.scene.lock().unwrap();
         if let Some(el) = scene.get(&ed.element_id).cloned() {
             let mut next = el.clone();
@@ -116,12 +121,25 @@ impl SceneCanvas {
         let name = self
             .file
             .as_deref()
-            .map(|p| p.file_name().unwrap_or_default().to_string_lossy().to_string())
+            .map(|p| {
+                p.file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            })
             .unwrap_or_else(|| "untitled".into());
-        format!("{name}   zoom {:.2}\u{00d7}   elements {visible}/{total}   drag=pan  wheel=zoom", self.zoom)
+        format!(
+            "{name}   zoom {:.2}\u{00d7}   elements {visible}/{total}   drag=pan  wheel=zoom",
+            self.zoom
+        )
     }
 
-    fn image_for(&mut self, el: &Element, window: &mut Window, cx: &mut App) -> Option<Arc<RenderImage>> {
+    fn image_for(
+        &mut self,
+        el: &Element,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Arc<RenderImage>> {
         let file_id = el.fileId.clone()?;
         if let Some(cached) = self.images.get(&file_id) {
             return cached.clone();
@@ -294,7 +312,10 @@ fn paint_selection_box(el: &Element, vp: &Viewport, window: &mut Window) {
     let sw = (w * vp.zoom) as f32;
     let sh = (h * vp.zoom) as f32;
     let bounds = gpui::Bounds {
-        origin: Point { x: px(sx - 2.0), y: px(sy - 2.0) },
+        origin: Point {
+            x: px(sx - 2.0),
+            y: px(sy - 2.0),
+        },
         size: size(px(sw + 4.0), px(sh + 4.0)),
     };
     window.paint_quad(gpui::quad(
@@ -313,7 +334,10 @@ fn paint_marquee(rect: &[f64; 4], vp: &Viewport, window: &mut Window) {
     let sh = ((rect[3] - rect[1]) * vp.zoom) as f32;
     window.paint_quad(gpui::quad(
         gpui::Bounds {
-            origin: Point { x: px(sx), y: px(sy) },
+            origin: Point {
+                x: px(sx),
+                y: px(sy),
+            },
             size: size(px(sw), px(sh)),
         },
         px(0.),
@@ -337,9 +361,9 @@ fn trace_path(builder: &mut gpui::PathBuilder, path: &lyon::path::Path) {
             PathEvent::Begin { at } => builder.move_to(gp(at)),
             PathEvent::Line { to, .. } => builder.line_to(gp(to)),
             PathEvent::Quadratic { ctrl, to, .. } => builder.curve_to(gp(to), gp(ctrl)),
-            PathEvent::Cubic { ctrl1, ctrl2, to, .. } => {
-                builder.cubic_bezier_to(gp(ctrl1), gp(ctrl2), gp(to))
-            }
+            PathEvent::Cubic {
+                ctrl1, ctrl2, to, ..
+            } => builder.cubic_bezier_to(gp(ctrl1), gp(ctrl2), gp(to)),
             PathEvent::End { close, .. } => {
                 if close {
                     builder.close()
@@ -350,7 +374,10 @@ fn trace_path(builder: &mut gpui::PathBuilder, path: &lyon::path::Path) {
 }
 
 fn gp(p: lyon::math::Point) -> Point<Pixels> {
-    Point { x: px(p.x), y: px(p.y) }
+    Point {
+        x: px(p.x),
+        y: px(p.y),
+    }
 }
 
 impl Render for SceneCanvas {
@@ -403,7 +430,12 @@ impl Render for SceneCanvas {
                         w,
                     )
                 } else {
-                    el.text.as_deref().unwrap_or("").split('\n').map(str::to_string).collect()
+                    el.text
+                        .as_deref()
+                        .unwrap_or("")
+                        .split('\n')
+                        .map(str::to_string)
+                        .collect()
                 };
                 let mut lines: Vec<gpui::AnyElement> = Vec::new();
                 for line in text_lines {
@@ -476,39 +508,42 @@ impl Render for SceneCanvas {
                         canvas(
                             move |bounds, _, _| bounds.size,
                             move |bounds, viewport_size, window, _| {
-                            let vp = Viewport {
-                                pan,
-                                zoom,
-                                width: f64::from(viewport_size.width),
-                                height: f64::from(viewport_size.height),
-                            };
-                            let mut visible = 0usize;
-                            for el in &paintable {
-                                if !vp.sees(el) {
-                                    continue;
+                                let vp = Viewport {
+                                    pan,
+                                    zoom,
+                                    width: f64::from(viewport_size.width),
+                                    height: f64::from(viewport_size.height),
+                                };
+                                let mut visible = 0usize;
+                                for el in &paintable {
+                                    if !vp.sees(el) {
+                                        continue;
+                                    }
+                                    visible += 1;
+                                    paint_element(el, &vp, window);
                                 }
-                                visible += 1;
-                                paint_element(el, &vp, window);
-                            }
-                            // Selection outlines.
-                            for id in &selection {
-                                if let Some(el) = paintable.iter().find(|e| &e.id == id)
-                                    .or_else(|| snapshot.iter().find(|e| &e.id == id))
-                                {
-                                    paint_selection_box(el, &vp, window);
+                                // Selection outlines.
+                                for id in &selection {
+                                    if let Some(el) = paintable
+                                        .iter()
+                                        .find(|e| &e.id == id)
+                                        .or_else(|| snapshot.iter().find(|e| &e.id == id))
+                                    {
+                                        paint_selection_box(el, &vp, window);
+                                    }
                                 }
-                            }
-                            // In-progress gesture.
-                            if let Some(draft) = &ghost.element {
-                                paint_element(draft, &vp, window);
-                            }
-                            if let Some(rect) = &ghost.marquee {
-                                paint_marquee(rect, &vp, window);
-                            }
-                            visible_counter.store(visible, std::sync::atomic::Ordering::Relaxed);
-                            let _ = bounds;
-                            let _ = tool;
-                        },
+                                // In-progress gesture.
+                                if let Some(draft) = &ghost.element {
+                                    paint_element(draft, &vp, window);
+                                }
+                                if let Some(rect) = &ghost.marquee {
+                                    paint_marquee(rect, &vp, window);
+                                }
+                                visible_counter
+                                    .store(visible, std::sync::atomic::Ordering::Relaxed);
+                                let _ = bounds;
+                                let _ = tool;
+                            },
                         )
                         .size_full(),
                     )
@@ -538,8 +573,12 @@ impl Render for SceneCanvas {
                                     return;
                                 }
                             }
-                            this.tools
-                                .pointer_down(&mut this.scene.lock().unwrap(), wx, wy, ev.modifiers.shift);
+                            this.tools.pointer_down(
+                                &mut this.scene.lock().unwrap(),
+                                wx,
+                                wy,
+                                ev.modifiers.shift,
+                            );
                             this.focus.focus(window);
                             cx.notify();
                         }),
@@ -549,15 +588,20 @@ impl Render for SceneCanvas {
                             // Still route moves: hover + drag continuation need them.
                         }
                         let (wx, wy) = this.to_world(ev.position);
-                        this.tools
-                            .pointer_move(&mut this.scene.lock().unwrap(), wx, wy, ev.modifiers.shift);
+                        this.tools.pointer_move(
+                            &mut this.scene.lock().unwrap(),
+                            wx,
+                            wy,
+                            ev.modifiers.shift,
+                        );
                         cx.notify();
                     }))
                     .on_mouse_up(
                         gpui::MouseButton::Left,
                         cx.listener(|this, ev: &MouseUpEvent, _, cx| {
                             let (wx, wy) = this.to_world(ev.position);
-                            this.tools.pointer_up(&mut this.scene.lock().unwrap(), wx, wy);
+                            this.tools
+                                .pointer_up(&mut this.scene.lock().unwrap(), wx, wy);
                             this.persist();
                             cx.notify();
                         }),
@@ -577,7 +621,8 @@ impl Render for SceneCanvas {
                     }))
                     .on_key_down(cx.listener(|this, ev: &gpui::KeyDownEvent, _, cx| {
                         let key = ev.keystroke.key.as_str();
-                        let ctrl = ev.keystroke.modifiers.control || ev.keystroke.modifiers.platform;
+                        let ctrl =
+                            ev.keystroke.modifiers.control || ev.keystroke.modifiers.platform;
 
                         // Inline text editing captures everything while active.
                         if let Some(ed) = &mut this.text_edit {
@@ -611,7 +656,11 @@ impl Render for SceneCanvas {
                             if ctrl {
                                 match key {
                                     "z" => {
-                                        if ev.keystroke.modifiers.shift { scene.redo(); } else { scene.undo(); }
+                                        if ev.keystroke.modifiers.shift {
+                                            scene.redo();
+                                        } else {
+                                            scene.undo();
+                                        }
                                     }
                                     "y" => {
                                         scene.redo();
@@ -622,15 +671,15 @@ impl Render for SceneCanvas {
                                     }
                                     "d" => this.tools.duplicate_selection(&mut scene),
                                     "g" => {
-                                        if ev.keystroke.modifiers.shift { this.tools.ungroup_selection(&mut scene); }
-                                        else { this.tools.group_selection(&mut scene); }
+                                        if ev.keystroke.modifiers.shift {
+                                            this.tools.ungroup_selection(&mut scene);
+                                        } else {
+                                            this.tools.group_selection(&mut scene);
+                                        }
                                     }
                                     "a" => {
-                                        let all: std::collections::HashSet<String> = scene
-                                            .ordered()
-                                            .iter()
-                                            .map(|e| e.id.clone())
-                                            .collect();
+                                        let all: std::collections::HashSet<String> =
+                                            scene.ordered().iter().map(|e| e.id.clone()).collect();
                                         this.tools.selection = all;
                                     }
                                     _ => handled = false,
@@ -641,7 +690,9 @@ impl Render for SceneCanvas {
                                         this.tools.set_tool(Tool::Select);
                                         this.tools.selection.clear();
                                     }
-                                    "delete" | "backspace" => this.tools.delete_selection(&mut scene),
+                                    "delete" | "backspace" => {
+                                        this.tools.delete_selection(&mut scene)
+                                    }
                                     "enter" => {}
                                     k => {
                                         if let Some(tool) = Tool::from_key(k) {
@@ -656,7 +707,7 @@ impl Render for SceneCanvas {
                         if handled {
                             cx.notify();
                         }
-                    }))
+                    })),
             )
             .child(
                 div()

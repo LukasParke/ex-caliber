@@ -74,25 +74,39 @@ impl TextEditState {
 
     pub fn caret_left(&mut self) {
         self.clamp_caret();
-        if let Some(prev) = self.working[..self.caret].char_indices().next_back().map(|(i, _)| i) {
+        if let Some(prev) = self.working[..self.caret]
+            .char_indices()
+            .next_back()
+            .map(|(i, _)| i)
+        {
             self.caret = prev;
         }
     }
 
     pub fn caret_right(&mut self) {
         self.clamp_caret();
-        if let Some(next) = self.working[self.caret..].char_indices().nth(1).map(|(i, _)| self.caret + i) {
+        if let Some(next) = self.working[self.caret..]
+            .char_indices()
+            .nth(1)
+            .map(|(i, _)| self.caret + i)
+        {
             self.caret = next;
         }
     }
 
     pub fn caret_home(&mut self) {
-        let line_start = self.working[..self.caret].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let line_start = self.working[..self.caret]
+            .rfind('\n')
+            .map(|i| i + 1)
+            .unwrap_or(0);
         self.caret = line_start;
     }
 
     pub fn caret_end(&mut self) {
-        let line_end = self.working[self.caret..].find('\n').map(|i| self.caret + i).unwrap_or(self.working.len());
+        let line_end = self.working[self.caret..]
+            .find('\n')
+            .map(|i| self.caret + i)
+            .unwrap_or(self.working.len());
         self.caret = line_end;
     }
 
@@ -184,5 +198,4 @@ mod tests {
         assert_eq!(ed.text(), "\nab\ncd");
         assert_eq!(ed.caret, 1);
     }
-
 }

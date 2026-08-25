@@ -23,7 +23,12 @@ fn renders_whole_corpus_without_error() {
                 xc_core::element::ElementType::Text | xc_core::element::ElementType::Image
             );
             if !el.isDeleted && !glyph_layer {
-                assert!(!ops.is_empty(), "{} produced no ops in {}", el.id, path.display());
+                assert!(
+                    !ops.is_empty(),
+                    "{} produced no ops in {}",
+                    el.id,
+                    path.display()
+                );
             }
             checked += 1;
         }

@@ -34,16 +34,14 @@ fn int_head_index(c: u8) -> u32 {
 
 fn integer_length(head: u8) -> usize {
     let i = int_head_index(head) as usize;
-    if i < HALF {
-        HALF - i + 1
-    } else {
-        i - HALF + 2
-    }
+    if i < HALF { HALF - i + 1 } else { i - HALF + 2 }
 }
 
 fn get_integer_part(key: &str) -> Result<&str, String> {
     let len = integer_length(
-        *key.as_bytes().first().ok_or_else(|| "empty order key".to_string())?,
+        *key.as_bytes()
+            .first()
+            .ok_or_else(|| "empty order key".to_string())?,
     );
     if len > key.len() {
         return Err(format!("invalid order key: {key}"));
@@ -69,9 +67,10 @@ fn is_smallest_integer(x: &str) -> bool {
 /// `a` may be empty; `b` is `None` or non-empty; `a < b` lexicographically when `b` present.
 fn midpoint(a: &str, b: Option<&str>) -> Result<String, String> {
     if let Some(b) = b
-        && a >= b {
-            return Err(format!("{a} >= {b}"));
-        }
+        && a >= b
+    {
+        return Err(format!("{a} >= {b}"));
+    }
     if a.ends_with(ZERO as char) || b.is_some_and(|b| b.ends_with(ZERO as char)) {
         return Err("trailing zero".to_string());
     }
@@ -83,8 +82,7 @@ fn midpoint(a: &str, b: Option<&str>) -> Result<String, String> {
             n += 1;
         }
         if n > 0 {
-            return Ok(b[..n].to_string()
-                + &midpoint(&a[n.min(ab.len())..], Some(&b[n..]))?);
+            return Ok(b[..n].to_string() + &midpoint(&a[n.min(ab.len())..], Some(&b[n..]))?);
         }
     }
 
@@ -186,9 +184,10 @@ pub fn generate_key_between(a: Option<&str>, b: Option<&str>) -> Result<String, 
     }
     let (mut a, mut b) = (a, b);
     if let (Some(av), Some(bv)) = (a, b)
-        && av > bv {
-            std::mem::swap(&mut a, &mut b);
-        }
+        && av > bv
+    {
+        std::mem::swap(&mut a, &mut b);
+    }
 
     if a.is_none() && b.is_none() {
         let head = INT_DIGITS[HALF];
@@ -347,11 +346,8 @@ mod tests {
             } else if pos == keys.len() {
                 generate_key_between(keys.last().map(|s| s.as_str()), None).unwrap()
             } else {
-                generate_key_between(
-                    Some(keys[pos - 1].as_str()),
-                    Some(keys[pos].as_str()),
-                )
-                .unwrap()
+                generate_key_between(Some(keys[pos - 1].as_str()), Some(keys[pos].as_str()))
+                    .unwrap()
             };
             keys.insert(pos, k);
             assert!(keys.windows(2).all(|w| w[0] < w[1]), "order broken");

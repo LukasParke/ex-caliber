@@ -113,7 +113,11 @@ fn move_is_one_undo_step_and_reversible() {
     assert_ne!(scene.get(&arrow_id).unwrap(), &before);
 
     assert!(scene.undo());
-    assert_eq!(scene.get(&arrow_id).unwrap(), &before, "undo restores arrow too");
+    assert_eq!(
+        scene.get(&arrow_id).unwrap(),
+        &before,
+        "undo restores arrow too"
+    );
     assert_eq!(scene.get("a").unwrap().x, 0.0);
 }
 
@@ -125,7 +129,10 @@ fn duplicate_gets_fresh_identity() {
     let copy = scene.get(&new_ids[0]).unwrap();
     assert_ne!(copy.id, "a");
     assert_ne!(copy.seed, scene.get("a").unwrap().seed);
-    assert_eq!((copy.x, copy.y, copy.width, copy.height), (0.0, 0.0, 100.0, 60.0));
+    assert_eq!(
+        (copy.x, copy.y, copy.width, copy.height),
+        (0.0, 0.0, 100.0, 60.0)
+    );
     assert!(copy.boundElements.is_none());
 }
 
@@ -137,7 +144,10 @@ fn group_and_ungroup_round_trip() {
 
     let gid = edit::group(&mut scene, &ids(&["a", "b"])).unwrap();
     assert_eq!(scene.get("a").unwrap().groupIds, vec![gid.clone()]);
-    assert_eq!(edit::common_group(&scene, &ids(&["a", "b"])).as_deref(), Some(gid.as_str()));
+    assert_eq!(
+        edit::common_group(&scene, &ids(&["a", "b"])).as_deref(),
+        Some(gid.as_str())
+    );
 
     edit::ungroup(&mut scene, &ids(&["a", "b"])).unwrap();
     assert!(scene.get("a").unwrap().groupIds.is_empty());

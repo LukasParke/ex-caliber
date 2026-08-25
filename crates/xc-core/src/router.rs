@@ -60,8 +60,14 @@ mod tests {
 
     #[test]
     fn collinear_inputs_stay_straight() {
-        assert_eq!(route_elbow([0.0, 0.0], [100.0, 0.0]), vec![[0.0, 0.0], [100.0, 0.0]]);
-        assert_eq!(route_elbow([0.0, 0.0], [0.0, 100.0]), vec![[0.0, 0.0], [0.0, 100.0]]);
+        assert_eq!(
+            route_elbow([0.0, 0.0], [100.0, 0.0]),
+            vec![[0.0, 0.0], [100.0, 0.0]]
+        );
+        assert_eq!(
+            route_elbow([0.0, 0.0], [0.0, 100.0]),
+            vec![[0.0, 0.0], [0.0, 100.0]]
+        );
     }
 
     #[test]

@@ -53,7 +53,6 @@ pub struct Scene {
     pub history: History,
 }
 
-
 impl Scene {
     pub fn new() -> Self {
         Self {
@@ -185,9 +184,7 @@ impl Scene {
                 if el.isDeleted {
                     continue;
                 }
-                change.entries.push(Entry::Delete {
-                    before: el.clone(),
-                });
+                change.entries.push(Entry::Delete { before: el.clone() });
                 el.isDeleted = true;
                 el.updated = crate::time::now_ms();
             }
@@ -255,12 +252,10 @@ impl Scene {
         }
 
         let new_index: String = match &target {
-            ReorderTarget::Front => {
-                key_err(findex::generate_key_between(
-                    self.last_live_index().as_deref(),
-                    None,
-                ))?
-            }
+            ReorderTarget::Front => key_err(findex::generate_key_between(
+                self.last_live_index().as_deref(),
+                None,
+            ))?,
             ReorderTarget::Back => {
                 let first = ordered.iter().filter_map(|e| e.index.clone()).next();
                 key_err(findex::generate_key_between(None, first.as_deref()))?
@@ -277,7 +272,10 @@ impl Scene {
                         Some(other_index.clone()),
                     )
                 } else {
-                    (Some(other_index.clone()), self.next_index_after(&other_index))
+                    (
+                        Some(other_index.clone()),
+                        self.next_index_after(&other_index),
+                    )
                 };
                 key_err(findex::generate_key_between(
                     before.as_deref(),
@@ -305,7 +303,8 @@ impl Scene {
         // Indices ascend in paint order; the last one below `index` is the neighbor.
         self.ordered()
             .iter()
-            .filter_map(|e| e.index.clone()).rfind(|ix| ix.as_str() < index)
+            .filter_map(|e| e.index.clone())
+            .rfind(|ix| ix.as_str() < index)
     }
 
     fn next_index_after(&self, index: &str) -> Option<String> {
@@ -316,7 +315,12 @@ impl Scene {
     }
 
     /// Attach/detach a bound-element ref on a target (used when arrows bind).
-    pub fn sync_binding_ref(&mut self, target_id: &str, arrow_id: &str, attach: bool) -> Result<()> {
+    pub fn sync_binding_ref(
+        &mut self,
+        target_id: &str,
+        arrow_id: &str,
+        attach: bool,
+    ) -> Result<()> {
         let existing = self
             .elements
             .get_mut(target_id)
@@ -386,10 +390,12 @@ impl Scene {
     /// Restore an element snapshot, keeping the order map in sync.
     fn restore_element(&mut self, before: Element) {
         let stale = self.elements.get(&before.id).and_then(|current| {
-            current
-                .index
-                .as_ref()
-                .filter(|ix| self.order.get(*ix).map(|v| v == &before.id).unwrap_or(false))
+            current.index.as_ref().filter(|ix| {
+                self.order
+                    .get(*ix)
+                    .map(|v| v == &before.id)
+                    .unwrap_or(false)
+            })
         });
         if let Some(old_ix) = stale {
             self.order.remove(old_ix);

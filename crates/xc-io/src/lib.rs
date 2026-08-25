@@ -71,7 +71,10 @@ fn stroke_attrs(el: &Element) -> String {
     };
     format!(
         " stroke=\"{}\" stroke-width=\"{}\"{} opacity=\"{}\"",
-        el.strokeColor, el.strokeWidth, dash, el.opacity as f64 / 100.0
+        el.strokeColor,
+        el.strokeWidth,
+        dash,
+        el.opacity as f64 / 100.0
     )
 }
 
@@ -156,7 +159,13 @@ fn image_svg(el: &Element, files: &serde_json::Value) -> String {
         Some(crop) => {
             let g = |k: &str| crop.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0);
             (
-                format!("{} {} {} {}", fmt(g("x")), fmt(g("y")), fmt(g("width")), fmt(g("height"))),
+                format!(
+                    "{} {} {} {}",
+                    fmt(g("x")),
+                    fmt(g("y")),
+                    fmt(g("width")),
+                    fmt(g("height"))
+                ),
                 (g("naturalWidth"), g("naturalHeight")),
             )
         }
@@ -225,7 +234,9 @@ fn text_svg(el: &Element) -> String {
 }
 
 fn linear_svg(el: &Element) -> String {
-    let Some(points) = &el.points else { return String::new() };
+    let Some(points) = &el.points else {
+        return String::new();
+    };
     if points.len() < 2 {
         return String::new();
     }
@@ -363,8 +374,10 @@ pub fn crop_image(data: &[u8], crop: &serde_json::Value) -> Result<Vec<u8>, Stri
     let (nw, nh) = (img.width() as f64, img.height() as f64);
     let x = (cx.max(0.0) * img.width() as f64 / nw).round() as u32;
     let y = (cy.max(0.0) * img.height() as f64 / nh).round() as u32;
-    let w = ((cw * img.width() as f64 / nw).round() as u32).min(img.width().saturating_sub(x).max(1));
-    let h = ((ch * img.height() as f64 / nh).round() as u32).min(img.height().saturating_sub(y).max(1));
+    let w =
+        ((cw * img.width() as f64 / nw).round() as u32).min(img.width().saturating_sub(x).max(1));
+    let h =
+        ((ch * img.height() as f64 / nh).round() as u32).min(img.height().saturating_sub(y).max(1));
     let cropped = img.crop_imm(x, y, w, h);
     let mut out = std::io::Cursor::new(Vec::new());
     cropped
@@ -384,7 +397,6 @@ pub fn decode_file_data(files: &serde_json::Value, file_id: &str) -> Option<(Str
         .ok()?;
     Some((mime.to_string(), bytes))
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -516,9 +528,19 @@ mod svg_image_tests {
             })
             .unwrap();
         let svg = scene_to_svg(&scene, 0.0);
-        assert!(svg.contains("<image href=\"data:image/png;base64,AAAA\""), "embeds dataURL");
-        assert!(svg.contains("viewBox=\"5 5 50 25\""), "crop rect becomes viewBox: {}", svg);
-        assert!(svg.contains("width=\"100\" height=\"100\""), "natural dims for inner image");
+        assert!(
+            svg.contains("<image href=\"data:image/png;base64,AAAA\""),
+            "embeds dataURL"
+        );
+        assert!(
+            svg.contains("viewBox=\"5 5 50 25\""),
+            "crop rect becomes viewBox: {}",
+            svg
+        );
+        assert!(
+            svg.contains("width=\"100\" height=\"100\""),
+            "natural dims for inner image"
+        );
     }
 
     #[test]
@@ -537,6 +559,9 @@ mod svg_image_tests {
             })
             .unwrap();
         let svg = scene_to_svg(&scene, 0.0);
-        assert!(svg.contains("image:gone"), "placeholder names the missing file");
+        assert!(
+            svg.contains("image:gone"),
+            "placeholder names the missing file"
+        );
     }
 }

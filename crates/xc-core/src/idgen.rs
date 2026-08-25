@@ -9,9 +9,8 @@ static STATE: AtomicU64 = AtomicU64::new(0);
 fn next_u64() -> u64 {
     let s = STATE.fetch_add(1, Ordering::Relaxed);
     let seed = if s == 0 { init_seed() } else { s };
-    
-    seed
-        .wrapping_mul(6364136223846793005)
+
+    seed.wrapping_mul(6364136223846793005)
         .wrapping_add(1442695040888963407 ^ std::process::id() as u64)
 }
 

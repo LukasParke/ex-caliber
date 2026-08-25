@@ -3,14 +3,14 @@
 //!
 //! Throwaway by design — the durable viewport lands with the scene model at M3/M4.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use gpui::{
-    canvas, div, prelude::*, px, quad, rgb, size, App, Application, Bounds, Context,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, ScrollDelta,
-    ScrollWheelEvent, SharedString, Window, WindowBounds, WindowOptions,
+    App, Application, Bounds, Context, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
+    Render, ScrollDelta, ScrollWheelEvent, SharedString, Window, WindowBounds, WindowOptions,
+    canvas, div, prelude::*, px, quad, rgb, size,
 };
 /// World-space rectangle `[x, y, w, h]` in model units.
 type WorldRect = [f64; 4];
@@ -258,7 +258,13 @@ fn paint_scene(
         Default::default(),
     ));
 
-    draw_grid(bounds, pan, zoom, gpui::hsla(0.58, 0.05, 0.55, 0.18), window);
+    draw_grid(
+        bounds,
+        pan,
+        zoom,
+        gpui::hsla(0.58, 0.05, 0.55, 0.18),
+        window,
+    );
 
     let origin = bounds.origin;
     let w = f64::from(bounds.size.width);

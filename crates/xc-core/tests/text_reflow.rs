@@ -27,8 +27,18 @@ fn mcp_style_text_patch_reflows_box() {
     scene.replace(el).unwrap();
 
     let after = scene.ordered()[0].clone();
-    let (w, _) = engine.measure("a much longer piece of text than before", "Excalifont", 20.0, 1.25);
-    assert!((after.width - w).abs() < 2.0, "box must match measurement: {} vs {}", after.width, w);
+    let (w, _) = engine.measure(
+        "a much longer piece of text than before",
+        "Excalifont",
+        20.0,
+        1.25,
+    );
+    assert!(
+        (after.width - w).abs() < 2.0,
+        "box must match measurement: {} vs {}",
+        after.width,
+        w
+    );
 }
 
 #[test]
@@ -67,8 +77,13 @@ fn container_resize_refits_label_font() {
     let size = label.fontSize.unwrap_or(20.0);
     assert!(size < 20.0, "label font must shrink, got {size}");
     assert!(size >= 8.0, "font floor is 8px, got {size}");
-    let measured = engine.measure(label.text.as_deref().unwrap(), "Excalifont", size, 1.25).0;
+    let measured = engine
+        .measure(label.text.as_deref().unwrap(), "Excalifont", size, 1.25)
+        .0;
     // Contract: font shrinks toward fit; at the 8px floor overflow is allowed
     // (excalidraw does the same).
-    assert!(measured <= 72.0 || size <= 8.0, "measured {measured} at size {size}");
+    assert!(
+        measured <= 72.0 || size <= 8.0,
+        "measured {measured} at size {size}"
+    );
 }

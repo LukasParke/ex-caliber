@@ -23,7 +23,9 @@ fn main() {
                 match arg.as_str() {
                     "-f" | "--format" => format = rest.next().unwrap_or_default(),
                     "-o" | "--out" => out = rest.next().map(std::path::PathBuf::from),
-                    other if !other.starts_with('-') => input = Some(std::path::PathBuf::from(other)),
+                    other if !other.starts_with('-') => {
+                        input = Some(std::path::PathBuf::from(other))
+                    }
                     other => {
                         eprintln!("xc export: unknown flag `{other}`");
                         std::process::exit(2);
@@ -138,7 +140,10 @@ fn run_export(
 }
 
 fn default_out(input: &std::path::Path, ext: &str) -> std::path::PathBuf {
-    let mut stem = input.file_stem().map(|s| s.to_os_string()).unwrap_or_default();
+    let mut stem = input
+        .file_stem()
+        .map(|s| s.to_os_string())
+        .unwrap_or_default();
     stem.push(".");
     stem.push(ext);
     input.with_file_name(stem)
@@ -160,20 +165,23 @@ fn run_install_claude(file: Option<std::path::PathBuf>) -> Result<(), String> {
         file_arg
     );
     let status = std::process::Command::new("claude")
-        .args([
-            "mcp",
-            "add",
-            "excaliber",
-            "--",
-        ])
+        .args(["mcp", "add", "excaliber", "--"])
         .arg(&xc_path)
         .args(["mcp"])
-        .args(file.iter().flat_map(|f| ["--file".to_string(), f.display().to_string()]))
+        .args(
+            file.iter()
+                .flat_map(|f| ["--file".to_string(), f.display().to_string()]),
+        )
         .status()
         .map_err(|e| format!("cannot run claude CLI: {e} (is it installed?)"))?;
     if status.success() {
         println!("registered. Start the canvas alongside your session with:");
-        println!("  xc {} &", file.as_ref().map(|f| f.display().to_string()).unwrap_or_default());
+        println!(
+            "  xc {} &",
+            file.as_ref()
+                .map(|f| f.display().to_string())
+                .unwrap_or_default()
+        );
         Ok(())
     } else {
         Err(format!("claude mcp add failed; run manually:\n  {cmd}"))

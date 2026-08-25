@@ -5,10 +5,10 @@
 //! Visual parity with Excalidraw's renderer is structural, not pixel-level
 //! (plan §1 non-goals): roughness mapping is approximated.
 
-use lyon::math::{point, Point};
+use lyon::math::{Point, point};
 use lyon::path::Path as LyonPath;
-use roughr::core::{FillStyle, Op, OpSetType, Options};
 use roughr::Srgba;
+use roughr::core::{FillStyle, Op, OpSetType, Options};
 use roughr::generator::Generator;
 
 use xc_core::element::{Element, ElementType, Roundness, StrokeStyle};
@@ -44,7 +44,11 @@ fn err<T>(msg: impl Into<String>) -> Result<T, RenderElementError> {
 /// Excalidraw roughness (0 architect, 1 artist, 2 cartoonist) → rough.js options.
 fn rough_options(el: &Element) -> Options {
     let r = el.roughness.clamp(0, 2);
-    let seed = if el.seed == 0 { 1u64 } else { el.seed.unsigned_abs() };
+    let seed = if el.seed == 0 {
+        1u64
+    } else {
+        el.seed.unsigned_abs()
+    };
     Options {
         seed: Some(seed),
         roughness: Some([0.5, 1.0, 2.0][r as usize]),
@@ -70,7 +74,9 @@ pub fn parse_color(s: &str) -> Srgba {
     if let Some(hex) = s.strip_prefix('#') {
         let bytes = hex.as_bytes();
         let hexval = |i: usize| -> f32 {
-            u8::from_str_radix(&hex[i..i + 2], 16).map(|v| v as f32 / 255.0).unwrap_or(0.0)
+            u8::from_str_radix(&hex[i..i + 2], 16)
+                .map(|v| v as f32 / 255.0)
+                .unwrap_or(0.0)
         };
         match bytes.len() {
             6 => Srgba::new(hexval(0), hexval(2), hexval(4), 1.0),
@@ -118,8 +124,13 @@ pub fn render_element(el: &Element) -> Result<Vec<DrawOp>, RenderElementError> {
             push_drawable(&mut ops, drawable, &opts, dash_for(el));
         }
         ElementType::Ellipse => {
-            let drawable =
-                generator.ellipse(w as f32 / 2.0, h as f32 / 2.0, w as f32, h as f32, &Some(opts.clone()));
+            let drawable = generator.ellipse(
+                w as f32 / 2.0,
+                h as f32 / 2.0,
+                w as f32,
+                h as f32,
+                &Some(opts.clone()),
+            );
             push_drawable(&mut ops, drawable, &opts, dash_for(el));
         }
         ElementType::Diamond => {
@@ -163,7 +174,10 @@ pub fn render_element(el: &Element) -> Result<Vec<DrawOp>, RenderElementError> {
             if pts.len() < 2 {
                 return err("linear element with fewer than 2 points");
             }
-            let f32pts: Vec<Point> = pts.iter().map(|[x, y]| point(*x as f32, *y as f32)).collect();
+            let f32pts: Vec<Point> = pts
+                .iter()
+                .map(|[x, y]| point(*x as f32, *y as f32))
+                .collect();
             let drawable = generator.linear_path(&f32pts, false, &Some(opts.clone()));
             push_drawable(&mut ops, drawable, &opts, dash_for(el));
             if el.kind == ElementType::Arrow {
@@ -260,12 +274,16 @@ fn push_drawable(
     dash: Option<&'static [f32]>,
 ) {
     for set in &drawable.sets {
-        let Some(path) = opset_to_path(&set.ops) else { continue };
+        let Some(path) = opset_to_path(&set.ops) else {
+            continue;
+        };
         match set.op_set_type {
             OpSetType::Path => ops.push(DrawOp::Stroke {
                 path,
                 width: opts.stroke_width.unwrap_or(1.0),
-                color: opts.stroke.unwrap_or_else(|| Srgba::new(0.0, 0.0, 0.0, 1.0)),
+                color: opts
+                    .stroke
+                    .unwrap_or_else(|| Srgba::new(0.0, 0.0, 0.0, 1.0)),
                 dash,
             }),
             OpSetType::FillPath => {
@@ -312,7 +330,11 @@ fn opset_to_path(ops: &[Op<f32>]) -> Option<LyonPath> {
                     continue;
                 }
                 // data: [c1x, c1y, c2x, c2y, x, y]
-                b.cubic_bezier_to(point(op.data[0], op.data[1]), point(op.data[2], op.data[3]), point(op.data[4], op.data[5]));
+                b.cubic_bezier_to(
+                    point(op.data[0], op.data[1]),
+                    point(op.data[2], op.data[3]),
+                    point(op.data[4], op.data[5]),
+                );
             }
         }
     }
@@ -388,11 +410,19 @@ mod tests {
 
     #[test]
     fn shapes_render_nonempty_and_deterministic() {
-        for kind in [ElementType::Rectangle, ElementType::Ellipse, ElementType::Diamond] {
+        for kind in [
+            ElementType::Rectangle,
+            ElementType::Ellipse,
+            ElementType::Diamond,
+        ] {
             let a = render_element(&shape(kind, 12345)).unwrap();
             let b = render_element(&shape(kind, 12345)).unwrap();
             assert!(!a.is_empty(), "{kind:?} produced no ops");
-            assert_eq!(format!("{a:?}"), format!("{b:?}"), "{kind:?} not deterministic");
+            assert_eq!(
+                format!("{a:?}"),
+                format!("{b:?}"),
+                "{kind:?} not deterministic"
+            );
         }
     }
 
@@ -400,7 +430,11 @@ mod tests {
     fn seed_changes_geometry() {
         let a = render_element(&shape(ElementType::Rectangle, 1)).unwrap();
         let b = render_element(&shape(ElementType::Rectangle, 2)).unwrap();
-        assert_ne!(format!("{a:?}"), format!("{b:?}"), "seeds must change geometry");
+        assert_ne!(
+            format!("{a:?}"),
+            format!("{b:?}"),
+            "seeds must change geometry"
+        );
     }
 
     #[test]
@@ -434,8 +468,14 @@ mod tests {
     #[test]
     fn arrows_emit_head_fill() {
         let ops = render_element(&linear(ElementType::Arrow, 99)).unwrap();
-        assert!(ops.iter().any(|op| matches!(op, DrawOp::Fill { .. })), "arrowhead");
-        assert!(ops.iter().any(|op| matches!(op, DrawOp::Stroke { .. })), "shaft");
+        assert!(
+            ops.iter().any(|op| matches!(op, DrawOp::Fill { .. })),
+            "arrowhead"
+        );
+        assert!(
+            ops.iter().any(|op| matches!(op, DrawOp::Stroke { .. })),
+            "shaft"
+        );
     }
 
     #[test]
@@ -444,7 +484,11 @@ mod tests {
         el.endArrowhead = None;
         let a = render_element(&el).unwrap();
         let b = render_element(&linear(ElementType::Freedraw, 999_999)).unwrap();
-        assert_eq!(format!("{a:?}"), format!("{b:?}"), "freedraw must ignore seed");
+        assert_eq!(
+            format!("{a:?}"),
+            format!("{b:?}"),
+            "freedraw must ignore seed"
+        );
         match &a[0] {
             DrawOp::Stroke { path, .. } => {
                 let approx_len = path.iter().count();
@@ -459,15 +503,19 @@ mod tests {
         let mut el = shape(ElementType::Rectangle, 3);
         el.strokeStyle = StrokeStyle::Dashed;
         let ops = render_element(&el).unwrap();
-        assert!(ops
-            .iter()
-            .any(|op| matches!(op, DrawOp::Stroke { dash: Some(_), .. })));
+        assert!(
+            ops.iter()
+                .any(|op| matches!(op, DrawOp::Stroke { dash: Some(_), .. }))
+        );
     }
 
     #[test]
     fn rounded_rectangle_uses_path_generator() {
         let mut el = shape(ElementType::Rectangle, 11);
-        el.roundness = Some(Roundness { kind: 3, value: Some(12.0) });
+        el.roundness = Some(Roundness {
+            kind: 3,
+            value: Some(12.0),
+        });
         let ops = render_rounded_rect(&el).unwrap();
         assert!(!ops.is_empty());
     }

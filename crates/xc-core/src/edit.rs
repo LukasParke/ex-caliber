@@ -34,14 +34,7 @@ pub fn move_elements(scene: &mut Scene, ids: &[String], dx: f64, dy: f64) -> Res
 
 /// Resize an element to a new bbox (top-left + size). Non-uniform scale of linear
 /// point sets matches excalidraw's behavior of scaling point coordinates.
-pub fn resize_element(
-    scene: &mut Scene,
-    id: &str,
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-) -> Result<()> {
+pub fn resize_element(scene: &mut Scene, id: &str, x: f64, y: f64, w: f64, h: f64) -> Result<()> {
     let mut tx = crate::scene::SceneTx::default();
     let el = scene
         .get(id)
@@ -86,7 +79,10 @@ fn refit_label_font(
     tx: &mut SceneTx,
 ) -> Result<()> {
     let engine = crate::text::global_engine();
-    let (Some(label), Some(container)) = (scene.get(label_id).cloned(), scene.get(container_id).cloned()) else {
+    let (Some(label), Some(container)) = (
+        scene.get(label_id).cloned(),
+        scene.get(container_id).cloned(),
+    ) else {
         return Ok(());
     };
     let (cw, _) = container.effective_size();
@@ -181,7 +177,10 @@ pub fn common_group(scene: &Scene, ids: &[String]) -> Option<String> {
     let first = scene.get(iter.next()?)?;
     let candidate = first.groupIds.first()?;
     if ids.iter().all(|id| {
-        scene.get(id).map(|e| e.groupIds.contains(candidate)).unwrap_or(false)
+        scene
+            .get(id)
+            .map(|e| e.groupIds.contains(candidate))
+            .unwrap_or(false)
     }) {
         Some(candidate.clone())
     } else {
@@ -262,13 +261,7 @@ fn apply_mutation(scene: &mut Scene, tx: &mut SceneTx, next: Element) -> Result<
     tx.push_mutation(scene, current, next)
 }
 
-fn translate_one(
-    scene: &mut Scene,
-    id: &str,
-    dx: f64,
-    dy: f64,
-    tx: &mut SceneTx,
-) -> Result<()> {
+fn translate_one(scene: &mut Scene, id: &str, dx: f64, dy: f64, tx: &mut SceneTx) -> Result<()> {
     let el = scene
         .get(id)
         .cloned()
@@ -341,7 +334,11 @@ fn reanchor_arrow(
         .ok_or_else(|| crate::scene::SceneError::UnknownElement(arrow_id.to_string()))?;
     // User-pinned segments are preserved verbatim; unpinned elbows re-route.
     let pinned_elbow = arrow.elbowed == Some(true)
-        && arrow.fixedSegments.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
+        && arrow
+            .fixedSegments
+            .as_ref()
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
     if pinned_elbow {
         return Ok(());
     }
@@ -363,13 +360,12 @@ fn reanchor_arrow(
                          origin: &mut (f64, f64),
                          moved: Option<&std::collections::HashSet<String>>|
      -> Result<bool> {
-        let Some(binding) = end_binding else { return Ok(false) };
-        let target = scene
-            .get(binding.element_id())
-            .cloned()
-            .ok_or_else(|| {
-                crate::scene::SceneError::UnknownElement(binding.element_id().to_string())
-            })?;
+        let Some(binding) = end_binding else {
+            return Ok(false);
+        };
+        let target = scene.get(binding.element_id()).cloned().ok_or_else(|| {
+            crate::scene::SceneError::UnknownElement(binding.element_id().to_string())
+        })?;
         // Only re-anchor when THIS end's target moved (or recompute forced).
         if let Some(moved) = moved.filter(|m| !m.contains(binding.element_id())) {
             let _ = moved;
@@ -504,10 +500,7 @@ pub fn begin_drag(scene: &Scene, ids: &[String]) -> DragSession {
     all.extend(labels_in_containers(scene, &moved));
     all.sort();
     all.dedup();
-    let before = all
-        .iter()
-        .filter_map(|id| scene.get(id).cloned())
-        .collect();
+    let before = all.iter().filter_map(|id| scene.get(id).cloned()).collect();
     DragSession { ids: all, before }
 }
 
@@ -532,15 +525,25 @@ pub fn drag_move(scene: &mut Scene, session: &DragSession, dx: f64, dy: f64) {
     }
     // Re-anchor every arrow in the session against current target positions.
     for id in &session.ids {
-        if let Some(arrow) = scene.get(id).cloned().filter(|a| a.kind == ElementType::Arrow) {
+        if let Some(arrow) = scene
+            .get(id)
+            .cloned()
+            .filter(|a| a.kind == ElementType::Arrow)
+        {
             reanchor_arrow_silent(scene, &arrow);
         }
     }
     // Re-center labels.
     for id in &session.ids {
-        let label = scene.get(id).cloned().filter(|l| l.kind == ElementType::Text);
+        let label = scene
+            .get(id)
+            .cloned()
+            .filter(|l| l.kind == ElementType::Text);
         if let Some(label) = label {
-            let container = label.containerId.clone().and_then(|cid| scene.get(&cid).cloned());
+            let container = label
+                .containerId
+                .clone()
+                .and_then(|cid| scene.get(&cid).cloned());
             if let Some(container) = container {
                 let (cw, ch) = container.effective_size();
                 let (lw, lh) = label.effective_size();
@@ -568,14 +571,21 @@ pub fn end_drag(scene: &mut Scene, session: DragSession) {
 
 fn reanchor_arrow_silent(scene: &mut Scene, arrow: &Element) {
     let mut next = arrow.clone();
-    let Some(points) = next.points.as_mut() else { return };
+    let Some(points) = next.points.as_mut() else {
+        return;
+    };
     if points.is_empty() {
         return;
     }
     let mut origin = (next.x, next.y);
-    for (idx, binding) in [(0usize, &next.startBinding), (points.len() - 1, &next.endBinding)] {
+    for (idx, binding) in [
+        (0usize, &next.startBinding),
+        (points.len() - 1, &next.endBinding),
+    ] {
         let Some(b) = binding else { continue };
-        let Some(target) = scene.get(b.element_id()) else { continue };
+        let Some(target) = scene.get(b.element_id()) else {
+            continue;
+        };
         let (tw, th) = target.effective_size();
         let fp = match b {
             Binding::Fixed(fb) => fb.fixed_point,

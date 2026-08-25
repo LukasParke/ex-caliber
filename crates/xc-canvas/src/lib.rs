@@ -6,9 +6,9 @@
 //! through the same `Arc<Mutex<Scene>>`.
 
 mod scene_canvas;
+mod spike;
 pub mod text_edit;
 pub mod tools;
-mod spike;
 
-pub use scene_canvas::{open_scene_window, SceneCanvas};
+pub use scene_canvas::{SceneCanvas, open_scene_window};
 pub use spike::run_spike;

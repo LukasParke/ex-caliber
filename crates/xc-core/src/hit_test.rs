@@ -45,7 +45,15 @@ pub fn hits(el: &Element, px: f64, py: f64) -> bool {
     qx >= min_x - slop && qx <= max_x + slop && qy >= min_y - slop && qy <= max_y + slop
 }
 
-fn point_near_segment(ox: f64, oy: f64, a: [f64; 2], b: [f64; 2], px: f64, py: f64, slop: f64) -> bool {
+fn point_near_segment(
+    ox: f64,
+    oy: f64,
+    a: [f64; 2],
+    b: [f64; 2],
+    px: f64,
+    py: f64,
+    slop: f64,
+) -> bool {
     let (ax, ay) = (ox + a[0], oy + a[1]);
     let (bx, by) = (ox + b[0], oy + b[1]);
     let (vx, vy) = (bx - ax, by - ay);
@@ -120,7 +128,10 @@ mod tests {
 
     #[test]
     fn topmost_prefers_painted_later() {
-        let bottom = Element { id: "bottom".into(), ..rect(0.0, 0.0, 100.0, 100.0) };
+        let bottom = Element {
+            id: "bottom".into(),
+            ..rect(0.0, 0.0, 100.0, 100.0)
+        };
         let mut top = rect(40.0, 40.0, 100.0, 100.0);
         top.id = "top".into();
         top.index = Some("a1".into());

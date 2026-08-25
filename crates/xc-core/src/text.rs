@@ -8,16 +8,22 @@
 use parking_lot::Mutex;
 use std::sync::LazyLock;
 
-use cosmic_text::{Attrs, Buffer, FontSystem, Metrics};
 use crate::element::{Element, ElementType};
+use cosmic_text::{Attrs, Buffer, FontSystem, Metrics};
 
 /// Embedded font binaries (see assets/fonts/LICENSES.md for terms + sources).
-pub static EXCALIFONT: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/fonts/Excalifont-Regular.ttf"));
-pub static NUNITO: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/fonts/Nunito-Regular.ttf"));
-pub static COMIC_SHANNS: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/fonts/ComicShanns-Regular.ttf"));
+pub static EXCALIFONT: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/fonts/Excalifont-Regular.ttf"
+));
+pub static NUNITO: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/fonts/Nunito-Regular.ttf"
+));
+pub static COMIC_SHANNS: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/fonts/ComicShanns-Regular.ttf"
+));
 
 /// Excalidraw numeric `fontFamily` → family name we register everywhere.
 pub fn family_for(font_family: i64) -> &'static str {
@@ -102,7 +108,11 @@ impl TextEngine {
                     (Some(first), Some(last)) => (first.start, last.end),
                     _ => (0, run.text.len()),
                 };
-                (run.line_w, run.line_height, run.text[start..end].to_string())
+                (
+                    run.line_w,
+                    run.line_height,
+                    run.text[start..end].to_string(),
+                )
             })
             .collect()
     }
@@ -136,16 +146,10 @@ impl TextEngine {
         if max_width <= 0.0 {
             return text.split('\n').map(str::to_string).collect();
         }
-        self.shape(
-            text,
-            family,
-            font_size,
-            line_height,
-            Some(max_width as f32),
-        )
-        .into_iter()
-        .map(|(_, _, line)| line)
-        .collect()
+        self.shape(text, family, font_size, line_height, Some(max_width as f32))
+            .into_iter()
+            .map(|(_, _, line)| line)
+            .collect()
     }
 
     /// Recompute a text element's width/height from its content and style.
@@ -202,7 +206,10 @@ mod tests {
         let mono = engine.measure("mmm", "Comic Shanns", 20.0, 1.25).0;
         assert!(hand > 0.0 && mono > 0.0);
         // Monospace 'mmm' should be exactly 3 advance widths; hand font differs.
-        assert!((hand - mono).abs() > 0.5, "fonts must have distinct metrics");
+        assert!(
+            (hand - mono).abs() > 0.5,
+            "fonts must have distinct metrics"
+        );
     }
 
     #[test]
@@ -211,7 +218,10 @@ mod tests {
         let text = "the quick brown fox jumps over the lazy dog again and again";
         let one_line = engine.measure(text, "Excalifont", 20.0, 1.25).0;
         let wrapped = engine.wrap(text, "Excalifont", 20.0, 1.25, one_line * 0.5);
-        assert!(wrapped.len() >= 2, "should wrap into multiple lines: {wrapped:?}");
+        assert!(
+            wrapped.len() >= 2,
+            "should wrap into multiple lines: {wrapped:?}"
+        );
         // Every laid-out line respects the limit (within rounding).
         for line in &wrapped {
             let lw = engine.measure(line, "Excalifont", 20.0, 1.25).0;
@@ -238,7 +248,11 @@ mod tests {
         wrapped.autoResize = Some(false);
         wrapped.width = 40.0; // force narrow
         engine.reflow(&mut wrapped);
-        assert!(wrapped.height > 25.0, "wrapped height must grow: {}", wrapped.height);
+        assert!(
+            wrapped.height > 25.0,
+            "wrapped height must grow: {}",
+            wrapped.height
+        );
     }
 
     #[test]

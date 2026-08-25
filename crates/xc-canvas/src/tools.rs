@@ -51,13 +51,22 @@ pub struct Ghost {
 enum Gesture {
     None,
     /// Moving the selection; cursor position tracks the latest event.
-    Move { origin: [f64; 2] },
+    Move {
+        origin: [f64; 2],
+    },
     /// Creating a shape; start point fixed.
-    Create { start: [f64; 2] },
+    Create {
+        start: [f64; 2],
+    },
     Sketch,
-    Marquee { start: [f64; 2] },
+    Marquee {
+        start: [f64; 2],
+    },
     /// Corner resize on the single selection.
-    Resize { handle: Corner, orig: [f64; 4] },
+    Resize {
+        handle: Corner,
+        orig: [f64; 4],
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,7 +162,8 @@ impl ToolState {
                     return;
                 }
                 let ordered = scene.ordered();
-                let hit = xc_core::hit_test::topmost(ordered.iter().copied(), x, y).map(|e| e.id.clone());
+                let hit =
+                    xc_core::hit_test::topmost(ordered.iter().copied(), x, y).map(|e| e.id.clone());
                 match hit {
                     Some(id) => {
                         if shift {
@@ -198,7 +208,8 @@ impl ToolState {
             }
             Tool::Eraser => {
                 let ordered = scene.ordered();
-                if let Some(hit) = xc_core::hit_test::topmost(ordered.iter().copied(), x, y).map(|e| e.id.clone())
+                if let Some(hit) =
+                    xc_core::hit_test::topmost(ordered.iter().copied(), x, y).map(|e| e.id.clone())
                 {
                     let _ = scene.delete(&[hit]);
                 }
@@ -266,7 +277,10 @@ impl ToolState {
                                 let len = (dx * dx + dy * dy).sqrt();
                                 draft.points = Some(vec![
                                     start,
-                                    [start[0] + len * snapped.cos(), start[1] + len * snapped.sin()],
+                                    [
+                                        start[0] + len * snapped.cos(),
+                                        start[1] + len * snapped.sin(),
+                                    ],
                                 ]);
                             } else {
                                 draft.points = Some(vec![start, [x, y]]);
@@ -322,7 +336,12 @@ impl ToolState {
                 self.resize = Some((
                     self.selection.iter().next().cloned().unwrap_or_default(),
                     handle,
-                    [nx0.min(nx1), ny0.min(ny1), (nx1 - nx0).abs().max(1.0), (ny1 - ny0).abs().max(1.0)],
+                    [
+                        nx0.min(nx1),
+                        ny0.min(ny1),
+                        (nx1 - nx0).abs().max(1.0),
+                        (ny1 - ny0).abs().max(1.0),
+                    ],
                 ));
             }
         }
@@ -342,7 +361,8 @@ impl ToolState {
                         // Click without drag: drop a default-sized shape.
                         let (w, h) = default_size(draft.kind);
                         if draft.is_linear() {
-                            draft.points = Some(vec![[start[0], start[1]], [start[0] + w, start[1]]]);
+                            draft.points =
+                                Some(vec![[start[0], start[1]], [start[0] + w, start[1]]]);
                         } else {
                             draft.width = w;
                             draft.height = h;
@@ -359,7 +379,10 @@ impl ToolState {
                 }
             }
             Gesture::Sketch => {
-                let sketch = self.draft.take().filter(|d| d.points.as_ref().map(|p| p.len()).unwrap_or(0) >= 2);
+                let sketch = self
+                    .draft
+                    .take()
+                    .filter(|d| d.points.as_ref().map(|p| p.len()).unwrap_or(0) >= 2);
                 if let Some(draft) = sketch {
                     match scene.add(draft) {
                         Ok(id) => {
@@ -428,10 +451,7 @@ impl ToolState {
         let (_, bh) = b.effective_size();
         let arrow = Element {
             kind: ElementType::Arrow,
-            points: Some(vec![
-                [a.x + aw, a.y + ah / 2.0],
-                [b.x, b.y + bh / 2.0],
-            ]),
+            points: Some(vec![[a.x + aw, a.y + ah / 2.0], [b.x, b.y + bh / 2.0]]),
             x: a.x,
             y: a.y,
             width: (b.x - (a.x + aw)).abs(),
@@ -455,7 +475,12 @@ impl ToolState {
 
 #[allow(dead_code)] // retained for marquee overlay math once ghost rendering lands
 fn marquee_rect(a: [f64; 2], b: [f64; 2]) -> [f64; 4] {
-    [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])]
+    [
+        a[0].min(b[0]),
+        a[1].min(b[1]),
+        a[0].max(b[0]),
+        a[1].max(b[1]),
+    ]
 }
 
 fn default_size(kind: ElementType) -> (f64, f64) {
