@@ -339,8 +339,11 @@ fn reanchor_arrow(
         .get(arrow_id)
         .cloned()
         .ok_or_else(|| crate::scene::SceneError::UnknownElement(arrow_id.to_string()))?;
-    if arrow.elbowed == Some(true) {
-        return Ok(()); // elbow routing is M7
+    // User-pinned segments are preserved verbatim; unpinned elbows re-route.
+    let pinned_elbow = arrow.elbowed == Some(true)
+        && arrow.fixedSegments.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
+    if pinned_elbow {
+        return Ok(());
     }
     let points = match arrow.points.clone() {
         Some(p) => p,
@@ -400,6 +403,24 @@ fn reanchor_arrow(
     let start_changed = recompute_end(&next.startBinding, 0, pts, &mut origin, moved)?;
     let end_idx = pts.len() - 1;
     let end_changed = recompute_end(&next.endBinding, end_idx, pts, &mut origin, moved)?;
+
+    if next.elbowed == Some(true) && (start_changed || end_changed) {
+        // Re-route the elbow between the (possibly moved) endpoints.
+        let route = crate::router::route_elbow(
+            [origin.0 + pts[0][0], origin.1 + pts[0][1]],
+            [origin.0 + pts[end_idx][0], origin.1 + pts[end_idx][1]],
+        );
+        // Express the route relative to a normalized origin.
+        let (min_x, min_y) = (
+            route.iter().map(|p| p[0]).fold(f64::MAX, f64::min),
+            route.iter().map(|p| p[1]).fold(f64::MAX, f64::min),
+        );
+        origin = (min_x, min_y);
+        *pts = route
+            .into_iter()
+            .map(|[x, y]| [x - min_x, y - min_y])
+            .collect();
+    }
 
     if start_changed || end_changed {
         let current = scene

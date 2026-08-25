@@ -34,7 +34,7 @@ pub fn scene_to_svg(scene: &Scene, padding: f64) -> String {
     }
     for el in &elements {
         if el.kind != ElementType::Frame {
-            out.push_str(&element_svg(el));
+            out.push_str(&element_svg(el, &scene.files));
         }
     }
     out.push_str("</svg>\n");
@@ -83,7 +83,7 @@ fn fill_attr(el: &Element) -> String {
     }
 }
 
-fn element_svg(el: &Element) -> String {
+fn element_svg(el: &Element, files: &serde_json::Value) -> String {
     let (w, h) = el.effective_size();
     match el.kind {
         ElementType::Rectangle => format!(
@@ -113,7 +113,30 @@ fn element_svg(el: &Element) -> String {
         ElementType::Frame => String::new(), // painted separately
         ElementType::Text => text_svg(el),
         ElementType::Line | ElementType::Arrow | ElementType::Freedraw => linear_svg(el),
-        ElementType::Image => format!(
+        ElementType::Image => image_svg(el, files),
+        _ => format!(
+            "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\"{fill}{stroke}/>\n",
+            x = fmt(el.x),
+            y = fmt(el.y),
+            w = fmt(w),
+            h = fmt(h),
+            fill = fill_attr(el),
+            stroke = stroke_attrs(el),
+        ),
+    }
+}
+
+fn image_svg(el: &Element, files: &serde_json::Value) -> String {
+    let (w, h) = el.effective_size();
+    let data_url = el
+        .fileId
+        .as_deref()
+        .and_then(|fid| files.get(fid))
+        .and_then(|f| f.get("dataURL"))
+        .and_then(|u| u.as_str())
+        .map(str::to_string);
+    let Some(data_url) = data_url else {
+        return format!(
             "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" fill=\"#f1f3f5\" \
              stroke=\"#adb5bd\" stroke-dasharray=\"4 4\"/>\n\
              <text x=\"{tx}\" y=\"{ty}\" font-family=\"sans-serif\" font-size=\"12\" \
@@ -125,17 +148,34 @@ fn element_svg(el: &Element) -> String {
             tx = fmt(el.x + 4.0),
             ty = fmt(el.y + h / 2.0),
             id = el.fileId.as_deref().unwrap_or("?"),
-        ),
-        _ => format!(
-            "<rect x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\"{fill}{stroke}/>\n",
-            x = fmt(el.x),
-            y = fmt(el.y),
-            w = fmt(w),
-            h = fmt(h),
-            fill = fill_attr(el),
-            stroke = stroke_attrs(el),
-        ),
-    }
+        );
+    };
+    // Nested <svg> viewport: crop rect (natural coords) becomes the viewBox, the
+    // full image fills natural dimensions — the excalidraw crop model exactly.
+    let (view_box, nat) = match el.crop.as_ref() {
+        Some(crop) => {
+            let g = |k: &str| crop.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            (
+                format!("{} {} {} {}", fmt(g("x")), fmt(g("y")), fmt(g("width")), fmt(g("height"))),
+                (g("naturalWidth"), g("naturalHeight")),
+            )
+        }
+        None => (format!("0 0 {} {}", fmt(w), fmt(h)), (w, h)),
+    };
+    format!(
+        "<svg x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" viewBox=\"{vb}\" \
+         preserveAspectRatio=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n\
+         <image href=\"{href}\" x=\"0\" y=\"0\" width=\"{nw}\" height=\"{nh}\" \
+         preserveAspectRatio=\"none\"/>\n</svg>\n",
+        x = fmt(el.x),
+        y = fmt(el.y),
+        w = fmt(w),
+        h = fmt(h),
+        vb = view_box,
+        href = xml_escape(&data_url),
+        nw = fmt(nat.0),
+        nh = fmt(nat.1),
+    )
 }
 
 fn frame_svg(el: &Element) -> String {
@@ -306,6 +346,33 @@ fn fmt(v: f64) -> String {
     }
 }
 
+/// Crop decoded image bytes to `crop` (natural-coordinate rect: x, y, width,
+/// height — the excalidraw image-crop model). Returns PNG bytes.
+pub fn crop_image(data: &[u8], crop: &serde_json::Value) -> Result<Vec<u8>, String> {
+    let get = |k: &str| -> Result<f64, String> {
+        crop.get(k)
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| format!("crop missing {k}"))
+    };
+    let (cx, cy) = (get("x")?, get("y")?);
+    let (cw, ch) = (get("width")?, get("height")?);
+    if cw <= 0.0 || ch <= 0.0 {
+        return Err("crop rect is empty".into());
+    }
+    let img = ::image::load_from_memory(data).map_err(|e| format!("decode: {e}"))?;
+    let (nw, nh) = (img.width() as f64, img.height() as f64);
+    let x = (cx.max(0.0) * img.width() as f64 / nw).round() as u32;
+    let y = (cy.max(0.0) * img.height() as f64 / nh).round() as u32;
+    let w = ((cw * img.width() as f64 / nw).round() as u32).min(img.width().saturating_sub(x).max(1));
+    let h = ((ch * img.height() as f64 / nh).round() as u32).min(img.height().saturating_sub(y).max(1));
+    let cropped = img.crop_imm(x, y, w, h);
+    let mut out = std::io::Cursor::new(Vec::new());
+    cropped
+        .write_to(&mut out, ::image::ImageFormat::Png)
+        .map_err(|e| format!("encode: {e}"))?;
+    Ok(out.into_inner())
+}
+
 /// Decode an embedded file (`files[fileId].dataURL`) into (mime, bytes).
 pub fn decode_file_data(files: &serde_json::Value, file_id: &str) -> Option<(String, Vec<u8>)> {
     let url = files.get(file_id)?.get("dataURL")?.as_str()?;
@@ -391,5 +458,85 @@ mod tests {
         let png = svg_to_png(&svg, 2.0).unwrap();
         assert!(png.len() > 100);
         assert_eq!(&png[1..4], b"PNG");
+    }
+}
+
+#[cfg(test)]
+mod crop_tests {
+    use super::*;
+
+    fn tiny_png() -> Vec<u8> {
+        // 4x4 red PNG via the image crate itself (round-trip source).
+        let img = ::image::RgbaImage::from_pixel(4, 4, ::image::Rgba([255, 0, 0, 255]));
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, ::image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn crops_to_requested_rect() {
+        let crop = serde_json::json!({"x": 0.0, "y": 0.0, "width": 2.0, "height": 4.0});
+        let cropped = crop_image(&tiny_png(), &crop).unwrap();
+        let img = ::image::load_from_memory(&cropped).unwrap();
+        assert_eq!((img.width(), img.height()), (2, 4));
+    }
+
+    #[test]
+    fn empty_crop_is_an_error() {
+        let crop = serde_json::json!({"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0});
+        assert!(crop_image(&tiny_png(), &crop).is_err());
+    }
+}
+
+#[cfg(test)]
+mod svg_image_tests {
+    use super::*;
+    use xc_core::element::Element;
+
+    #[test]
+    fn svg_export_embeds_images_with_crop() {
+        let mut scene = Scene::new();
+        scene.files = serde_json::json!({
+            "img1": {"dataURL": "data:image/png;base64,AAAA"}
+        });
+        scene
+            .add(Element {
+                kind: ElementType::Image,
+                id: "img".into(),
+                x: 10.0,
+                y: 10.0,
+                width: 100.0,
+                height: 50.0,
+                fileId: Some("img1".into()),
+                crop: Some(serde_json::json!({
+                    "x": 5.0, "y": 5.0, "width": 50.0, "height": 25.0,
+                    "naturalWidth": 100.0, "naturalHeight": 100.0
+                })),
+                ..Default::default()
+            })
+            .unwrap();
+        let svg = scene_to_svg(&scene, 0.0);
+        assert!(svg.contains("<image href=\"data:image/png;base64,AAAA\""), "embeds dataURL");
+        assert!(svg.contains("viewBox=\"5 5 50 25\""), "crop rect becomes viewBox: {}", svg);
+        assert!(svg.contains("width=\"100\" height=\"100\""), "natural dims for inner image");
+    }
+
+    #[test]
+    fn missing_file_renders_placeholder() {
+        let mut scene = Scene::new();
+        scene
+            .add(Element {
+                kind: ElementType::Image,
+                id: "img".into(),
+                x: 0.0,
+                y: 0.0,
+                width: 40.0,
+                height: 40.0,
+                fileId: Some("gone".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        let svg = scene_to_svg(&scene, 0.0);
+        assert!(svg.contains("image:gone"), "placeholder names the missing file");
     }
 }

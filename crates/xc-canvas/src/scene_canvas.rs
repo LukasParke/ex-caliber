@@ -94,12 +94,17 @@ impl SceneCanvas {
         if let Some(cached) = self.images.get(&file_id) {
             return cached.clone();
         }
+        let crop = el.crop.clone();
         let decoded = self
             .scene
             .lock()
             .ok()
             .and_then(|scene| xc_io::decode_file_data(&scene.files, &file_id))
-            .and_then(|(mime, bytes)| {
+            .and_then(|(mime, mut bytes)| {
+                // Apply the excalidraw image crop by pre-cropping the bitmap.
+                if let Some(crop) = &crop {
+                    bytes = xc_io::crop_image(&bytes, crop).unwrap_or(bytes);
+                }
                 let format = gpui::ImageFormat::from_mime_type(&mime)?;
                 Some(gpui::Image::from_bytes(format, bytes))
             })

@@ -132,6 +132,32 @@ pub fn render_element(el: &Element) -> Result<Vec<DrawOp>, RenderElementError> {
             let drawable = generator.polygon(&pts, &Some(opts.clone()));
             push_drawable(&mut ops, drawable, &opts, dash_for(el));
         }
+        ElementType::Arrow if el.elbowed == Some(true) => {
+            // Elbow arrows are crisp orthogonal polylines (excalidraw renders
+            // them un-roughened).
+            let pts = el.points.as_deref().unwrap_or(&[]);
+            if pts.len() < 2 {
+                return err("elbow arrow with fewer than 2 points");
+            }
+            let mut b = LyonPath::builder();
+            b.begin(point(pts[0][0] as f32, pts[0][1] as f32));
+            for [x, y] in &pts[1..] {
+                b.line_to(point(*x as f32, *y as f32));
+            }
+            b.end(false);
+            ops.push(DrawOp::Stroke {
+                path: b.build(),
+                width: el.strokeWidth as f32,
+                color: parse_color(&el.strokeColor),
+                dash: dash_for(el),
+            });
+            if el.endArrowhead.is_some() {
+                ops.push(arrowhead(pts, false, &parse_color(&el.strokeColor)));
+            }
+            if el.startArrowhead.is_some() {
+                ops.push(arrowhead(pts, true, &parse_color(&el.strokeColor)));
+            }
+        }
         ElementType::Line | ElementType::Arrow => {
             let pts = el.points.as_deref().unwrap_or(&[]);
             if pts.len() < 2 {

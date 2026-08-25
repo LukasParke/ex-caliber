@@ -10,6 +10,7 @@ pub mod findex;
 pub mod file;
 pub mod history;
 pub mod idgen;
+pub mod router;
 pub mod scene;
 pub mod text;
 pub mod time;

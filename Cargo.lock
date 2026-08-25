@@ -7148,6 +7148,7 @@ name = "xc-io"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "image",
  "resvg",
  "serde_json",
  "xc-core",
