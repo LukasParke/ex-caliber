@@ -42,6 +42,10 @@ fn key_err(r: std::result::Result<String, String>) -> Result<String> {
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
     elements: BTreeMap<String, Element>,
+    /// index-key → id, mirroring each element's `index`. Maintained by every
+    /// mutation so `ordered()`/`last_live_index` are O(log n) instead of a full
+    /// sort per call (the 10k-add perf regression caught the O(n²)).
+    order: BTreeMap<String, String>,
     /// Raw passthrough of appState we don't model yet (round-trip fidelity).
     pub app_state: serde_json::Value,
     /// Raw passthrough of embedded binary files (dataURLs), keyed by fileId.
@@ -102,11 +106,12 @@ impl Scene {
     }
 
     fn last_live_index(&self) -> Option<String> {
-        self.ordered()
-            .iter()
+        self.order
+            .values()
             .rev()
-            .filter_map(|e| e.index.clone())
-            .next()
+            .filter_map(|id| self.elements.get(id))
+            .find(|e| !e.isDeleted)
+            .and_then(|e| e.index.clone())
     }
 
     /// Add an element (assigning id/seed/index bookkeeping as needed); records undo.
@@ -138,6 +143,9 @@ impl Scene {
             ),
         };
         let id = el.id.clone();
+        if let Some(ix) = &el.index {
+            self.order.insert(ix.clone(), id.clone());
+        }
         self.elements.insert(id.clone(), el.clone());
         Ok(Change {
             entries: vec![Entry::Insert { id }],
@@ -279,6 +287,10 @@ impl Scene {
         };
         let existing = self.elements.get_mut(id).unwrap();
         let before = existing.clone();
+        if let Some(old) = &before.index {
+            self.order.remove(old);
+        }
+        self.order.insert(new_index.clone(), id.to_string());
         existing.index = Some(new_index);
         existing.version += 1;
         existing.updated = crate::time::now_ms();
@@ -362,19 +374,30 @@ impl Scene {
                     }
                 }
                 Entry::Delete { before } => {
-                    if let Some(el) = self.elements.get_mut(&before.id) {
-                        *el = before.clone();
-                    } else {
-                        self.elements.insert(before.id.clone(), before.clone());
-                    }
+                    self.restore_element(before.clone());
                 }
                 Entry::Mutate { before, .. } => {
-                    if let Some(el) = self.elements.get_mut(&before.id) {
-                        *el = before.clone();
-                    }
+                    self.restore_element(before.clone());
                 }
             }
         }
+    }
+
+    /// Restore an element snapshot, keeping the order map in sync.
+    fn restore_element(&mut self, before: Element) {
+        let stale = self.elements.get(&before.id).and_then(|current| {
+            current
+                .index
+                .as_ref()
+                .filter(|ix| self.order.get(*ix).map(|v| v == &before.id).unwrap_or(false))
+        });
+        if let Some(old_ix) = stale {
+            self.order.remove(old_ix);
+        }
+        if let Some(ix) = &before.index {
+            self.order.insert(ix.clone(), before.id.clone());
+        }
+        self.elements.insert(before.id.clone(), before);
     }
 
     fn apply_forward(&mut self, change: &Change) {
@@ -391,9 +414,7 @@ impl Scene {
                     }
                 }
                 Entry::Mutate { after, .. } => {
-                    if let Some(el) = self.elements.get_mut(&after.id) {
-                        *el = after.clone();
-                    }
+                    self.restore_element(after.clone());
                 }
             }
         }
