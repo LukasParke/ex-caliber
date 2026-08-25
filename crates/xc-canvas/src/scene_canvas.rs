@@ -267,20 +267,34 @@ impl Render for SceneCanvas {
                 let (w, h) = el.effective_size();
                 let (sx, sy) = vp_seed.to_screen(el.x, el.y);
                 let font_size = (el.fontSize.unwrap_or(20.0) * self.zoom).max(4.0);
+                let family = xc_core::text::family_for(el.fontFamily.unwrap_or(1));
                 let color = if el.strokeColor == "#1e1e1e" {
                     gpui::black()
                 } else {
                     srgba_to_hsla(xc_render::geometry::parse_color(&el.strokeColor))
                 };
                 let line_px = font_size * el.lineHeight.unwrap_or(1.25);
+                // autoResize=false wraps to the element width (engine-measured).
+                let text_lines: Vec<String> = if el.autoResize == Some(false) {
+                    xc_core::text::global_engine().wrap(
+                        el.text.as_deref().unwrap_or(""),
+                        family,
+                        el.fontSize.unwrap_or(20.0),
+                        el.lineHeight.unwrap_or(1.25),
+                        w,
+                    )
+                } else {
+                    el.text.as_deref().unwrap_or("").split('\n').map(str::to_string).collect()
+                };
                 let mut lines: Vec<gpui::AnyElement> = Vec::new();
-                for line in el.text.as_deref().unwrap_or("").split('\n') {
+                for line in text_lines {
                     lines.push(
                         div()
+                            .font_family(family)
                             .text_size(px(font_size as f32))
                             .line_height(px(line_px as f32))
                             .text_color(color)
-                            .child(SharedString::from(line.to_string()))
+                            .child(SharedString::from(line))
                             .into_any_element(),
                     );
                 }
@@ -487,6 +501,15 @@ impl Render for SceneCanvas {
 
 pub fn open_scene_window(file: Option<PathBuf>) {
     Application::new().run(|cx: &mut App| {
+        // Register the bundled Excalidraw fonts so text renders with the same
+        // faces the measurement engine uses.
+        let fonts: Vec<std::borrow::Cow<'static, [u8]>> = xc_core::text::bundled_fonts()
+            .into_iter()
+            .map(|(_, bytes)| std::borrow::Cow::Borrowed(bytes))
+            .collect();
+        if let Err(e) = cx.text_system().add_fonts(fonts) {
+            eprintln!("xc: font registration failed: {e}");
+        }
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(
             WindowOptions {

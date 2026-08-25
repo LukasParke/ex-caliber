@@ -7137,6 +7137,8 @@ dependencies = [
 name = "xc-core"
 version = "0.1.0"
 dependencies = [
+ "cosmic-text",
+ "parking_lot",
  "serde",
  "serde_json",
 ]

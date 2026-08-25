@@ -271,8 +271,10 @@ impl XcMcpServer {
                 for (k, v) in fields {
                     obj.insert(k.clone(), v.clone());
                 }
-                let next: Element = serde_json::from_value(value)
+                let mut next: Element = serde_json::from_value(value)
                     .map_err(|e| format!("patch produced invalid element: {e}"))?;
+                // Text edits re-measure the box (autoResize) or re-wrap height.
+                xc_core::text::global_engine().reflow(&mut next);
                 scene.replace(next).map_err(|e| e.to_string())?;
                 updated.push(patch.id.clone());
             }

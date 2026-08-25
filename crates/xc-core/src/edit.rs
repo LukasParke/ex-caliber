@@ -71,9 +71,43 @@ pub fn resize_element(
     }
     for label in labels_in_containers(scene, &moved) {
         recenter_label(scene, &label, &moved, &mut tx)?;
+        refit_label_font(scene, &label, id, &mut tx)?;
     }
     tx.commit(scene);
     Ok(())
+}
+
+/// Shrink a container label's font until it fits the container width
+/// (excalidraw's auto-fit); floor at 8px.
+fn refit_label_font(
+    scene: &mut Scene,
+    label_id: &str,
+    container_id: &str,
+    tx: &mut SceneTx,
+) -> Result<()> {
+    let engine = crate::text::global_engine();
+    let (Some(label), Some(container)) = (scene.get(label_id).cloned(), scene.get(container_id).cloned()) else {
+        return Ok(());
+    };
+    let (cw, _) = container.effective_size();
+    let inner_w = (cw - 10.0).max(8.0); // BOUND_TEXT_PADDING ≈ 5 each side
+    let font_size = label.fontSize.unwrap_or(20.0);
+    let lh = label.lineHeight.unwrap_or(1.25);
+    let family = crate::text::family_for(label.fontFamily.unwrap_or(1));
+    let text = label.text.as_deref().unwrap_or("");
+    let mut size = font_size;
+    let mut measured = engine.measure(text, family, size, lh).0;
+    while measured > inner_w && size > 8.0 {
+        size = (size - 1.0).max(8.0);
+        measured = engine.measure(text, family, size, lh).0;
+    }
+    if (size - font_size).abs() < 0.5 {
+        return Ok(());
+    }
+    let mut next = label.clone();
+    next.fontSize = Some(size);
+    next.height = (next.height / font_size) * size;
+    apply_mutation(scene, tx, next)
 }
 
 /// Duplicate elements in place (fresh ids/seeds, stacked on top of originals).

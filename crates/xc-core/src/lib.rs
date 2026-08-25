@@ -11,4 +11,5 @@ pub mod file;
 pub mod history;
 pub mod idgen;
 pub mod scene;
+pub mod text;
 pub mod time;
